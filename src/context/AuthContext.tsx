@@ -10,6 +10,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { friendlyNetworkError, isRetryableError, sleep } from '../lib/network'
 import type { Profile } from '../types/database'
 
 interface AuthState {
@@ -108,17 +109,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadProfile])
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error?.message ?? null }
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (!error) return { error: null }
+        const msg = error.message
+        if (!isRetryableError(msg) || attempt === 2) {
+          return { error: friendlyNetworkError(msg) }
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (attempt === 2) return { error: friendlyNetworkError(msg) }
+      }
+      await sleep(1200 * (attempt + 1))
+    }
+    return { error: 'Не удалось войти. Проверьте интернет и попробуйте снова.' }
   }, [])
 
   const signUp = useCallback(async (email: string, password: string, displayName: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { display_name: displayName } },
-    })
-    return { error: error?.message ?? null }
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { display_name: displayName } },
+        })
+        if (!error) {
+          if (data.session) return { error: null }
+          return {
+            error:
+              'Аккаунт создан. Войдите с тем же email и паролем (или подтвердите email в Supabase).',
+          }
+        }
+        const msg = error.message
+        if (!isRetryableError(msg) || attempt === 2) {
+          return { error: friendlyNetworkError(msg) }
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (attempt === 2) return { error: friendlyNetworkError(msg) }
+      }
+      await sleep(1200 * (attempt + 1))
+    }
+    return { error: 'Не удалось зарегистрироваться. Проверьте интернет.' }
   }, [])
 
   const signOut = useCallback(async () => {

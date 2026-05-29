@@ -60,3 +60,44 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.join_couple(uuid, date) TO authenticated;
+
+-- Проверка ссылки без RLS (кнопка «Связаться» на join-странице)
+CREATE OR REPLACE FUNCTION public.check_invite_status(p_couple_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_status text;
+  v_members int;
+  v_my_role text;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN 'not_authenticated';
+  END IF;
+
+  SELECT role INTO v_my_role
+  FROM public.couple_members
+  WHERE couple_id = p_couple_id AND user_id = v_uid;
+
+  IF v_my_role = 'a' THEN RETURN 'creator'; END IF;
+  IF v_my_role = 'b' THEN RETURN 'already_member'; END IF;
+
+  IF EXISTS (SELECT 1 FROM public.couple_members WHERE user_id = v_uid) THEN
+    RETURN 'in_other_couple';
+  END IF;
+
+  SELECT status INTO v_status FROM public.couples WHERE id = p_couple_id;
+  IF v_status IS NULL THEN RETURN 'not_found'; END IF;
+  IF v_status <> 'pending' THEN RETURN 'not_pending'; END IF;
+
+  SELECT COUNT(*)::int INTO v_members FROM public.couple_members WHERE couple_id = p_couple_id;
+  IF v_members <> 1 THEN RETURN 'full'; END IF;
+
+  RETURN 'ok';
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.check_invite_status(uuid) TO authenticated;

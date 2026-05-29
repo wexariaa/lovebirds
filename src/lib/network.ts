@@ -36,7 +36,13 @@ export function friendlyNetworkError(msg: string): string {
     return 'В этой паре уже два человека.'
   if (m.includes('invalid') || m.includes('expired'))
     return 'Ссылка недействительна. Создайте новую пару и новую ссылку.'
-  if (m.includes('failed to fetch') || m.includes('network') || m.includes('abort'))
+  if (
+    m.includes('failed to fetch') ||
+    m.includes('load failed') ||
+    m.includes('network') ||
+    m.includes('abort') ||
+    m.includes('econnreset')
+  )
     return 'Нет связи с сервером. Подождите 10 сек и нажмите снова.'
   if (m.includes('pgrst202') || m.includes('join_couple'))
     return 'Выполните fix-join.sql в Supabase SQL Editor.'
@@ -45,5 +51,12 @@ export function friendlyNetworkError(msg: string): string {
 
 export function isRetryableError(msg: string): boolean {
   const m = msg.toLowerCase()
-  return m.includes('failed to fetch') || m.includes('network') || m.includes('abort') || m.includes('timeout')
+  return (
+    m.includes('failed to fetch') ||
+    m.includes('load failed') ||
+    m.includes('network') ||
+    m.includes('abort') ||
+    m.includes('timeout') ||
+    m.includes('econnreset')
+  )
 }

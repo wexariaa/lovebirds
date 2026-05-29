@@ -34,11 +34,7 @@ export function LoginPage() {
       setBusy(false)
       return
     }
-    if (mode === 'register') {
-      setError('Аккаунт создан. Если не перенаправило — нажмите «Войти» с тем же email и паролем.')
-      setBusy(false)
-    }
-    // login: busy остаётся true до редиректа (см. useEffect выше)
+    setBusy(false)
   }
 
   return (

@@ -112,6 +112,9 @@ async function main() {
   })
   log('B retry join (idempotent v2)', !retryErr, retryErr?.message ?? 'ok')
 
+  const { data: inviteOk } = await clientB.rpc('check_invite_status', { p_couple_id: coupleId })
+  log('check_invite_status after join', inviteOk === 'already_member', inviteOk ?? 'missing fn')
+
   const coupleId2 = randomUUID()
   await clientA.from('couples').insert({ id: coupleId2, status: 'pending' })
   await clientA.from('couple_members').insert({ couple_id: coupleId2, user_id: userA.id, role: 'a' })
@@ -120,6 +123,11 @@ async function main() {
   await clientC.auth.signUp({ email: `test-c-${tag}@test.local`, password: pass })
   const userC = (await clientC.auth.getSession()).data.session?.user
   if (userC) {
+    const { data: invStatus } = await clientC.rpc('check_invite_status', {
+      p_couple_id: coupleId2,
+    })
+    log('check_invite_status pending', invStatus === 'ok', invStatus ?? 'missing fn')
+
     const { data: inv, error: invErr } = await clientC
       .from('couples')
       .select('id, status')
@@ -143,6 +151,10 @@ function printSummary() {
   }
   if (v2Retry?.ok && v2Creator?.ok) {
     console.log('✓ fix-join.sql v2 применён корректно')
+  }
+  const checkFn = results.find((r) => r.step.startsWith('check_invite_status pending'))
+  if (checkFn && !checkFn.ok) {
+    console.log('⚠ Добавьте check_invite_status — перезапустите supabase/fix-join.sql в SQL Editor')
   }
   console.log('Тестовые пары остаются в БД (можно удалить в Table Editor)')
 }
