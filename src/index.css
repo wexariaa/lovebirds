@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --color-rose-50: #fff1f2;
+  --color-rose-100: #ffe4e6;
+  --color-rose-200: #fecdd3;
+  --color-rose-400: #fb7185;
+  --color-rose-500: #f43f5e;
+  --color-rose-600: #e11d48;
+  --color-rose-700: #be123c;
+  --color-blush-900: #4c0519;
+}
+
+body {
+  @apply bg-gradient-to-br from-rose-50 via-white to-rose-100 min-h-screen font-sans text-blush-900 antialiased;
+}
+
+@keyframes heart-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 1; filter: drop-shadow(0 0 20px #f43f5e); }
+}
+
+.heart-active {
+  animation: heart-pulse 0.6s ease-in-out infinite;
+  color: #f43f5e;
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.toast-enter {
+  animation: slide-up 0.35s ease-out;
+}
