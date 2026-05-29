@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -33,66 +34,72 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
   const [myRole, setMyRole] = useState<'a' | 'b' | null>(null)
   const [partner, setPartner] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const userId = user?.id
+  const refreshGen = useRef(0)
 
-  const refresh = useCallback(async () => {
-    try {
-      if (!user) {
-        setCouple(null)
-        setMyRole(null)
-        setPartner(null)
-        return
+  const refresh = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const gen = ++refreshGen.current
+      if (!opts?.silent) setLoading(true)
+
+      try {
+        if (!userId) {
+          setCouple(null)
+          setMyRole(null)
+          setPartner(null)
+          return
+        }
+
+        const { data: membership, error: mErr } = await supabase
+          .from('couple_members')
+          .select('couple_id, role')
+          .eq('user_id', userId)
+          .maybeSingle()
+
+        if (gen !== refreshGen.current) return
+        if (mErr) console.error('couple_members:', mErr.message)
+
+        if (!membership) {
+          setCouple(null)
+          setMyRole(null)
+          setPartner(null)
+          return
+        }
+
+        setMyRole(membership.role)
+
+        const [{ data: coupleData }, { data: members }] = await Promise.all([
+          supabase.from('couples').select('*').eq('id', membership.couple_id).single(),
+          supabase
+            .from('couple_members')
+            .select('user_id')
+            .eq('couple_id', membership.couple_id),
+        ])
+
+        if (gen !== refreshGen.current) return
+        setCouple(coupleData)
+
+        const partnerId = members?.find((m) => m.user_id !== userId)?.user_id
+        if (partnerId) {
+          const { data: partnerProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', partnerId)
+            .single()
+          if (gen === refreshGen.current) setPartner(partnerProfile)
+        } else {
+          setPartner(null)
+        }
+      } catch (e) {
+        console.error('couple refresh:', e)
+      } finally {
+        if (gen === refreshGen.current && !opts?.silent) setLoading(false)
       }
-
-      const { data: membership, error: mErr } = await supabase
-        .from('couple_members')
-        .select('couple_id, role')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (mErr) console.error('couple_members:', mErr.message)
-
-      if (!membership) {
-        setCouple(null)
-        setMyRole(null)
-        setPartner(null)
-        return
-      }
-
-      setMyRole(membership.role)
-
-      const { data: coupleData } = await supabase
-        .from('couples')
-        .select('*')
-        .eq('id', membership.couple_id)
-        .single()
-
-      setCouple(coupleData)
-
-      const { data: members } = await supabase
-        .from('couple_members')
-        .select('user_id')
-        .eq('couple_id', membership.couple_id)
-
-      const partnerId = members?.find((m) => m.user_id !== user.id)?.user_id
-      if (partnerId) {
-        const { data: partnerProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', partnerId)
-          .single()
-        setPartner(partnerProfile)
-      } else {
-        setPartner(null)
-      }
-    } catch (e) {
-      console.error('couple refresh:', e)
-    } finally {
-      setLoading(false)
-    }
-  }, [user])
+    },
+    [userId],
+  )
 
   useEffect(() => {
-    setLoading(true)
     refresh()
   }, [refresh])
 
@@ -104,12 +111,12 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'couples', filter: `id=eq.${couple.id}` },
-        () => refresh(),
+        () => refresh({ silent: true }),
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'couple_members', filter: `couple_id=eq.${couple.id}` },
-        () => refresh(),
+        () => refresh({ silent: true }),
       )
       .subscribe()
 
@@ -119,12 +126,12 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
   }, [couple?.id, refresh])
 
   const createCouple = useCallback(async () => {
-    if (!user) return { coupleId: null, error: 'Не авторизован' }
+    if (!userId) return { coupleId: null, error: 'Не авторизован' }
 
     const { data: existing } = await supabase
       .from('couple_members')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle()
     if (existing) return { coupleId: null, error: 'Вы уже в паре' }
 
@@ -137,22 +144,22 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
 
     const { error: mErr } = await supabase.from('couple_members').insert({
       couple_id: coupleId,
-      user_id: user.id,
+      user_id: userId,
       role: 'a',
     })
     if (mErr) return { coupleId: null, error: mErr.message }
 
-    await refresh()
+    await refresh({ silent: true })
     return { coupleId, error: null }
-  }, [user, refresh])
+  }, [userId, refresh])
 
   const joinCouple = useCallback(
     async (coupleId: string, togetherSince: string) => {
-      if (!user) return { error: 'Не авторизован' }
+      if (!userId) return { error: 'Не авторизован' }
 
       const { error: mErr } = await supabase.from('couple_members').insert({
         couple_id: coupleId,
-        user_id: user.id,
+        user_id: userId,
         role: 'b',
       })
       if (mErr) return { error: mErr.message }
@@ -163,11 +170,11 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
         .eq('id', coupleId)
       if (uErr) return { error: uErr.message }
 
-      await seedCoupleData(coupleId, user.id)
-      await refresh()
+      await seedCoupleData(coupleId, userId)
+      await refresh({ silent: true })
       return { error: null }
     },
-    [user, refresh],
+    [userId, refresh],
   )
 
   const setTogetherSince = useCallback(
@@ -177,7 +184,7 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
         .from('couples')
         .update({ together_since: date, status: 'active' })
         .eq('id', couple.id)
-      if (!error) await refresh()
+      if (!error) await refresh({ silent: true })
       return { error: error?.message ?? null }
     },
     [couple?.id, refresh],
@@ -203,7 +210,7 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
       partner,
       loading,
       isComplete,
-      refresh,
+      refresh: () => refresh(),
       createCouple,
       joinCouple,
       setTogetherSince,

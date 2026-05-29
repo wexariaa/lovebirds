@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Button } from '../components/ui/Button'
@@ -13,6 +13,10 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  useEffect(() => {
+    if (user) setBusy(false)
+  }, [user])
+
   if (!loading && user) return <Navigate to="/pair" replace />
 
   const submit = async (e: React.FormEvent) => {
@@ -23,10 +27,16 @@ export function LoginPage() {
       mode === 'login'
         ? await signIn(email, password)
         : await signUp(email, password, name)
-    setBusy(false)
-    if (res.error) setError(res.error)
-    else if (mode === 'login') setError(null)
-    else setError('Аккаунт создан. Если не перенаправило — нажмите «Войти» с тем же email и паролем.')
+    if (res.error) {
+      setError(res.error)
+      setBusy(false)
+      return
+    }
+    if (mode === 'register') {
+      setError('Аккаунт создан. Если не перенаправило — нажмите «Войти» с тем же email и паролем.')
+      setBusy(false)
+    }
+    // login: busy остаётся true до редиректа (см. useEffect выше)
   }
 
   return (
@@ -67,8 +77,8 @@ export function LoginPage() {
             />
           </div>
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-          <Button type="submit" className="w-full" disabled={busy}>
-            {mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
+          <Button type="submit" className="w-full" disabled={busy || loading}>
+            {busy ? 'Входим…' : mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
           </Button>
         </form>
 

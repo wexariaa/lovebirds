@@ -5,6 +5,7 @@ import { useCouple } from '../context/CoupleContext'
 import { DEFAULT_ACTIVITY_IDEAS } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { AppShell } from '../components/layout/AppShell'
+import { LoadingScreen } from '../components/ui/LoadingScreen'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 
@@ -31,7 +32,7 @@ export function PairPage() {
     setBusy(false)
     if (err) setError(err)
     else if (coupleId && user) {
-      await Promise.all([
+      void Promise.all([
         supabase.from('activity_ideas').insert(
           DEFAULT_ACTIVITY_IDEAS.map((text) => ({
             couple_id: coupleId,
@@ -66,11 +67,7 @@ export function PairPage() {
   }
 
   if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-rose-500">
-        Загрузка…
-      </div>
-    )
+    return <LoadingScreen hint="Подключаемся к базе…" />
   }
 
   return (

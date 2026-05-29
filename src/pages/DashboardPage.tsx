@@ -2,6 +2,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCouple } from '../context/CoupleContext'
 import { AppShell } from '../components/layout/AppShell'
+import { LoadingScreen } from '../components/ui/LoadingScreen'
 import { ActivityWidget } from '../components/dashboard/ActivityWidget'
 import { AlbumWidget } from '../components/dashboard/AlbumWidget'
 import { AvatarUpload } from '../components/dashboard/AvatarUpload'
@@ -25,11 +26,7 @@ export function DashboardPage() {
   if (!loading && !isComplete) return <Navigate to="/pair" replace />
 
   if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-rose-500">
-        Загрузка…
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   return (
