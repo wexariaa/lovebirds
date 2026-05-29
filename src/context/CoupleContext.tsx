@@ -157,18 +157,11 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
     async (coupleId: string, togetherSince: string) => {
       if (!userId) return { error: 'Не авторизован' }
 
-      const { error: mErr } = await supabase.from('couple_members').insert({
-        couple_id: coupleId,
-        user_id: userId,
-        role: 'b',
+      const { error } = await supabase.rpc('join_couple', {
+        p_couple_id: coupleId,
+        p_together_since: togetherSince,
       })
-      if (mErr) return { error: mErr.message }
-
-      const { error: uErr } = await supabase
-        .from('couples')
-        .update({ status: 'active', together_since: togetherSince })
-        .eq('id', coupleId)
-      if (uErr) return { error: uErr.message }
+      if (error) return { error: error.message }
 
       await seedCoupleData(coupleId, userId)
       await refresh({ silent: true })

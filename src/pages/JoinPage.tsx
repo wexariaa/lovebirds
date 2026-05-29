@@ -6,6 +6,18 @@ import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 
+function joinErrorMessage(msg: string): string {
+  if (msg.includes('Already in a couple') || msg.includes('already in a couple'))
+    return 'Вы уже состоите в паре. Выйдите и зарегистрируйте новый аккаунт.'
+  if (msg.includes('invalid') || msg.includes('expired'))
+    return 'Ссылка недействительна или устарела.'
+  if (msg.includes('full'))
+    return 'В этой паре уже два человека.'
+  if (msg.includes('join_couple'))
+    return 'Функция join_couple не найдена — выполните fix-join.sql в Supabase.'
+  return msg
+}
+
 export function JoinPage() {
   const { id } = useParams<{ id: string }>()
   const { user, loading: authLoading } = useAuth()
@@ -36,7 +48,7 @@ export function JoinPage() {
     setError(null)
     const { error: err } = await joinCouple(id, since)
     setBusy(false)
-    if (err) setError(err)
+    if (err) setError(joinErrorMessage(err))
     else navigate('/')
   }
 

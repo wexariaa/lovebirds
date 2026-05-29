@@ -221,6 +221,33 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Join couple (RPC — partner B via invite link)
+CREATE OR REPLACE FUNCTION public.join_couple(p_couple_id uuid, p_together_since date)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_status text;
+  v_members int;
+BEGIN
+  IF v_uid IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+  IF EXISTS (SELECT 1 FROM public.couple_members WHERE user_id = v_uid) THEN
+    RAISE EXCEPTION 'Already in a couple';
+  END IF;
+  SELECT status INTO v_status FROM public.couples WHERE id = p_couple_id;
+  IF v_status IS NULL OR v_status <> 'pending' THEN
+    RAISE EXCEPTION 'Invite link is invalid or expired';
+  END IF;
+  SELECT COUNT(*)::int INTO v_members FROM public.couple_members WHERE couple_id = p_couple_id;
+  IF v_members <> 1 THEN RAISE EXCEPTION 'This pair is already full'; END IF;
+  INSERT INTO public.couple_members (couple_id, user_id, role) VALUES (p_couple_id, v_uid, 'b');
+  UPDATE public.couples SET status = 'active', together_since = p_together_since WHERE id = p_couple_id;
+END;
+$$;
+
 -- Dissolve couple (RPC)
 CREATE OR REPLACE FUNCTION public.dissolve_couple()
 RETURNS VOID

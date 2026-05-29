@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 
 export function LoginPage() {
   const { user, loading, signIn, signUp } = useAuth()
+  const [searchParams] = useSearchParams()
+  const afterLogin = searchParams.get('redirect') || '/pair'
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,7 +19,7 @@ export function LoginPage() {
     if (user) setBusy(false)
   }, [user])
 
-  if (!loading && user) return <Navigate to="/pair" replace />
+  if (!loading && user) return <Navigate to={afterLogin} replace />
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
