@@ -204,6 +204,19 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
         await sleep(1500 * (attempt + 1))
       }
 
+      // Старая join_couple на Supabase: первый запрос мог пройти, второй — «already in couple»
+      if (lastError) {
+        const { data: membership } = await supabase
+          .from('couple_members')
+          .select('role')
+          .eq('couple_id', coupleId)
+          .eq('user_id', userId)
+          .maybeSingle()
+        if (membership?.role === 'b') {
+          lastError = null
+        }
+      }
+
       if (lastError) return { error: lastError }
 
       void seedCoupleData(coupleId, userId)

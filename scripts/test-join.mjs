@@ -1,5 +1,5 @@
 /**
- * Диагностика join-flow. Запуск: node scripts/test-join.mjs
+ * Диагностика join-flow. Запуск: npm run test:join
  */
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
@@ -20,7 +20,7 @@ const url = env.VITE_SUPABASE_URL
 const key = env.VITE_SUPABASE_ANON_KEY
 
 if (!url || !key) {
-  console.error('Missing .env')
+  console.error('Missing .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)')
   process.exit(1)
 }
 
@@ -29,7 +29,10 @@ const emailA = `test-a-${tag}@test.local`
 const emailB = `test-b-${tag}@test.local`
 const pass = 'testpass123'
 
+const results = []
+
 function log(step, ok, detail = '') {
+  results.push({ step, ok, detail })
   console.log(`${ok ? '✓' : '✗'} ${step}${detail ? ': ' + detail : ''}`)
 }
 
@@ -40,52 +43,54 @@ async function main() {
   const clientA = createClient(url, key, { auth: { persistSession: false } })
   const clientB = createClient(url, key, { auth: { persistSession: false } })
 
-  // 1. Sign up A
-  let { error: eA } = await clientA.auth.signUp({ email: emailA, password: pass })
+  const { error: eA } = await clientA.auth.signUp({ email: emailA, password: pass })
   if (eA) {
     log('Signup A', false, eA.message)
+    printSummary()
     return
   }
   log('Signup A', true, emailA)
 
-  const { data: sessA } = await clientA.auth.getSession()
-  const userA = sessA.session?.user
+  const userA = (await clientA.auth.getSession()).data.session?.user
   if (!userA) {
-    log('Session A', false, 'no session — disable Confirm email in Supabase')
+    log('Session A', false, 'нет сессии — отключите Confirm email в Supabase Auth')
+    printSummary()
     return
   }
 
-  // 2. Create couple as A
   const coupleId = randomUUID()
-  let { error: cErr } = await clientA.from('couples').insert({ id: coupleId, status: 'pending' })
+  const { error: cErr } = await clientA.from('couples').insert({ id: coupleId, status: 'pending' })
   log('Insert couples', !cErr, cErr?.message ?? coupleId)
 
-  let { error: mErr } = await clientA.from('couple_members').insert({
+  const { error: mErr } = await clientA.from('couple_members').insert({
     couple_id: coupleId,
     user_id: userA.id,
     role: 'a',
   })
   log('Insert member A', !mErr, mErr?.message)
 
-  // 3. Creator tries own join link (common mistake)
   const { error: selfJoin } = await clientA.rpc('join_couple', {
     p_couple_id: coupleId,
     p_together_since: '2024-01-01',
   })
-  log('Creator joins own link (expect fail)', Boolean(selfJoin), selfJoin?.message)
+  const creatorMsg = selfJoin?.message ?? ''
+  const creatorOk = Boolean(selfJoin) && creatorMsg.toLowerCase().includes('invite link')
+  log(
+    'Creator own link → понятная ошибка (fix-join v2)',
+    creatorOk,
+    creatorMsg || 'unexpected success',
+  )
 
-  // 4. Sign up B
-  let { error: eB } = await clientB.auth.signUp({ email: emailB, password: pass })
+  const { error: eB } = await clientB.auth.signUp({ email: emailB, password: pass })
   log('Signup B', !eB, eB?.message ?? emailB)
 
-  const { data: sessB } = await clientB.auth.getSession()
-  const userB = sessB.session?.user
+  const userB = (await clientB.auth.getSession()).data.session?.user
   if (!userB) {
-    log('Session B', false, 'no session')
+    log('Session B', false, 'нет сессии')
+    printSummary()
     return
   }
 
-  // 5. B joins
   const t0 = Date.now()
   const { error: joinErr } = await clientB.rpc('join_couple', {
     p_couple_id: coupleId,
@@ -94,18 +99,19 @@ async function main() {
   const ms = Date.now() - t0
   log('Partner B joins', !joinErr, joinErr?.message ?? `${ms}ms`)
 
-  // 6. Verify couple active
-  const { data: couple } = await clientB.from('couples').select('status, together_since').eq('id', coupleId).single()
-  log('Couple status', couple?.status === 'active', JSON.stringify(couple))
+  const { data: couple } = await clientB
+    .from('couples')
+    .select('status, together_since')
+    .eq('id', coupleId)
+    .single()
+  log('Couple active', couple?.status === 'active', JSON.stringify(couple))
 
-  // 7. B retry join (idempotency)
   const { error: retryErr } = await clientB.rpc('join_couple', {
     p_couple_id: coupleId,
     p_together_since: '2024-06-01',
   })
-  log('B retry join (expect ok after fix)', !retryErr, retryErr?.message)
+  log('B retry join (idempotent v2)', !retryErr, retryErr?.message ?? 'ok')
 
-  // 8. Check invite read as B before join on new couple
   const coupleId2 = randomUUID()
   await clientA.from('couples').insert({ id: coupleId2, status: 'pending' })
   await clientA.from('couple_members').insert({ couple_id: coupleId2, user_id: userA.id, role: 'a' })
@@ -119,11 +125,29 @@ async function main() {
       .select('id, status')
       .eq('id', coupleId2)
       .single()
-    log('C can read pending invite', Boolean(inv && !invErr), invErr?.message ?? inv?.status)
+    log('Partner can read pending invite', Boolean(inv && !invErr), invErr?.message ?? inv?.status)
   }
 
-  console.log('---')
-  console.log('Done. Test couple ids:', coupleId, coupleId2)
+  printSummary()
 }
 
-main().catch(console.error)
+function printSummary() {
+  console.log('---')
+  const v2Retry = results.find((r) => r.step.startsWith('B retry'))
+  const v2Creator = results.find((r) => r.step.startsWith('Creator own'))
+  if (v2Retry && !v2Retry.ok) {
+    console.log('⚠ На Supabase СТАРАЯ join_couple — выполните supabase/fix-join.sql в SQL Editor')
+  }
+  if (v2Creator && !v2Creator.ok) {
+    console.log('⚠ Создатель видит «already in couple» вместо «your invite link» — тоже fix-join.sql v2')
+  }
+  if (v2Retry?.ok && v2Creator?.ok) {
+    console.log('✓ fix-join.sql v2 применён корректно')
+  }
+  console.log('Тестовые пары остаются в БД (можно удалить в Table Editor)')
+}
+
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})
