@@ -172,10 +172,11 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
         }
 
         const msg = rpcErr.message
+        lastError = friendlyNetworkError(msg)
+
         const rpcMissing =
-          msg.toLowerCase().includes('join_couple') ||
           msg.toLowerCase().includes('pgrst202') ||
-          msg.toLowerCase().includes('could not find')
+          msg.toLowerCase().includes('could not find the function')
 
         if (rpcMissing) {
           const { error: mErr } = await supabase.from('couple_members').insert({
@@ -187,7 +188,6 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
             lastError = friendlyNetworkError(mErr.message)
             break
           }
-
           const { error: uErr } = await supabase
             .from('couples')
             .update({ status: 'active', together_since: togetherSince })
@@ -196,20 +196,18 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
             lastError = friendlyNetworkError(uErr.message)
             break
           }
-
           lastError = null
           break
         }
 
-        lastError = friendlyNetworkError(msg)
         if (!isRetryableError(msg) || attempt === 2) break
-        await sleep(2000 * (attempt + 1))
+        await sleep(1500 * (attempt + 1))
       }
 
       if (lastError) return { error: lastError }
 
       void seedCoupleData(coupleId, userId)
-      await refresh({ silent: true })
+      void refresh({ silent: true })
       return { error: null }
     },
     [userId, refresh],

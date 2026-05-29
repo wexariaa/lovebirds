@@ -22,16 +22,24 @@ export async function sleep(ms: number) {
 
 export function friendlyNetworkError(msg: string): string {
   const m = msg.toLowerCase()
+  if (m.includes('your invite link') || m.includes('send it to your partner'))
+    return 'Это ваша ссылка — отправьте её партнёру, не открывайте сами.'
+  if (m.includes('different couple'))
+    return 'Вы уже состоите в другой паре. Нажмите «Расстались» или войдите другим аккаунтом.'
   if (m.includes('already in a couple'))
-    return 'Вы уже состоите в паре. Выйдите или зарегистрируйте новый аккаунт.'
-  if (m.includes('invalid') || m.includes('expired'))
-    return 'Ссылка недействительна или устарела.'
-  if (m.includes('full'))
+    return 'Вы уже состоите в паре. Если только что связались — обновите страницу.'
+  if (m.includes('not found'))
+    return 'Ссылка не найдена. Попросите партнёра создать новую пару.'
+  if (m.includes('no longer pending') || m.includes('not ready'))
+    return 'Ссылка уже использована. Попросите партнёра создать новую пару.'
+  if (m.includes('already full'))
     return 'В этой паре уже два человека.'
+  if (m.includes('invalid') || m.includes('expired'))
+    return 'Ссылка недействительна. Создайте новую пару и новую ссылку.'
   if (m.includes('failed to fetch') || m.includes('network') || m.includes('abort'))
-    return 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз через 10 секунд.'
+    return 'Нет связи с сервером. Подождите 10 сек и нажмите снова.'
   if (m.includes('pgrst202') || m.includes('join_couple'))
-    return 'База не настроена: выполните fix-join.sql в Supabase SQL Editor.'
+    return 'Выполните fix-join.sql в Supabase SQL Editor.'
   return msg
 }
 
