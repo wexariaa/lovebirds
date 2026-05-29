@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { supabase } from '../lib/supabase'
+import { friendlyNetworkError, isRetryableError, sleep } from '../lib/network'
 import { useAuth } from './AuthContext'
 import type { Couple, Profile } from '../types/database'
 
@@ -157,13 +158,57 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
     async (coupleId: string, togetherSince: string) => {
       if (!userId) return { error: 'Не авторизован' }
 
-      const { error } = await supabase.rpc('join_couple', {
-        p_couple_id: coupleId,
-        p_together_since: togetherSince,
-      })
-      if (error) return { error: error.message }
+      let lastError: string | null = null
 
-      await seedCoupleData(coupleId, userId)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { error: rpcErr } = await supabase.rpc('join_couple', {
+          p_couple_id: coupleId,
+          p_together_since: togetherSince,
+        })
+
+        if (!rpcErr) {
+          lastError = null
+          break
+        }
+
+        const msg = rpcErr.message
+        const rpcMissing =
+          msg.toLowerCase().includes('join_couple') ||
+          msg.toLowerCase().includes('pgrst202') ||
+          msg.toLowerCase().includes('could not find')
+
+        if (rpcMissing) {
+          const { error: mErr } = await supabase.from('couple_members').insert({
+            couple_id: coupleId,
+            user_id: userId,
+            role: 'b',
+          })
+          if (mErr) {
+            lastError = friendlyNetworkError(mErr.message)
+            break
+          }
+
+          const { error: uErr } = await supabase
+            .from('couples')
+            .update({ status: 'active', together_since: togetherSince })
+            .eq('id', coupleId)
+          if (uErr) {
+            lastError = friendlyNetworkError(uErr.message)
+            break
+          }
+
+          lastError = null
+          break
+        }
+
+        lastError = friendlyNetworkError(msg)
+        if (!isRetryableError(msg) || attempt === 2) break
+        await sleep(2000 * (attempt + 1))
+      }
+
+      if (lastError) return { error: lastError }
+
+      void seedCoupleData(coupleId, userId)
       await refresh({ silent: true })
       return { error: null }
     },

@@ -6,16 +6,10 @@ import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 
+import { friendlyNetworkError } from '../lib/network'
+
 function joinErrorMessage(msg: string): string {
-  if (msg.includes('Already in a couple') || msg.includes('already in a couple'))
-    return 'Вы уже состоите в паре. Выйдите и зарегистрируйте новый аккаунт.'
-  if (msg.includes('invalid') || msg.includes('expired'))
-    return 'Ссылка недействительна или устарела.'
-  if (msg.includes('full'))
-    return 'В этой паре уже два человека.'
-  if (msg.includes('join_couple'))
-    return 'Функция join_couple не найдена — выполните fix-join.sql в Supabase.'
-  return msg
+  return friendlyNetworkError(msg)
 }
 
 export function JoinPage() {
@@ -71,7 +65,7 @@ export function JoinPage() {
           <p className="text-sm text-amber-600">Ссылка недействительна или пара уже полная.</p>
         )}
         <Button type="submit" className="w-full" disabled={busy}>
-          Связаться
+          {busy ? 'Связываем…' : 'Связаться'}
         </Button>
       </form>
     </div>
