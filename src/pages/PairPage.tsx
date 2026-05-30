@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useCouple } from '../context/CoupleContext'
 import { DEFAULT_ACTIVITY_IDEAS } from '../lib/constants'
 import { supabase } from '../lib/supabase'
-import { AppShell } from '../components/layout/AppShell'
+import { SetupShell } from '../components/layout/SetupShell'
 import { LoadingScreen } from '../components/ui/LoadingScreen'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -32,23 +32,13 @@ export function PairPage() {
     setBusy(false)
     if (err) setError(err)
     else if (coupleId && user) {
-      void Promise.all([
-        supabase.from('activity_ideas').insert(
-          DEFAULT_ACTIVITY_IDEAS.map((text) => ({
-            couple_id: coupleId,
-            text,
-            is_custom: false,
-          })),
-        ),
-        supabase.from('savings_goals').insert({ couple_id: coupleId }),
-        supabase.from('tic_tac_toe_games').insert({
+      void supabase.from('activity_ideas').insert(
+        DEFAULT_ACTIVITY_IDEAS.map((text) => ({
           couple_id: coupleId,
-          board: Array(9).fill(''),
-          current_turn: user.id,
-          player_x: user.id,
-          status: 'playing',
-        }),
-      ])
+          text,
+          is_custom: false,
+        })),
+      )
     }
   }
 
@@ -71,24 +61,24 @@ export function PairPage() {
   }
 
   return (
-    <AppShell>
-      <div className="max-w-lg mx-auto space-y-6">
-        <h1 className="text-2xl font-bold text-rose-700 text-center">Свяжите ваши сердца</h1>
+    <SetupShell>
+      <div className="space-y-6">
+        <h1 className="font-display text-2xl text-center text-[var(--lb-text)]">Свяжите ваши сердца</h1>
 
         {!couple ? (
-          <div className="rounded-2xl bg-white/80 border border-rose-100 p-6 text-center space-y-4">
-            <p className="text-rose-800/70 text-sm">
-              Создайте пару и отправьте ссылку партнёру. Никакого поиска — только ваша ссылка.
+          <div className="rounded-2xl bg-[var(--lb-card)] border border-[var(--lb-border)] p-6 text-center space-y-4">
+            <p className="text-[var(--lb-muted)] text-sm">
+              Создайте пару и отправьте ссылку партнёру.
             </p>
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {error && <p className="text-red-400 text-sm">{error}</p>}
             <Button onClick={handleCreate} disabled={busy} className="w-full">
               Создать пару
             </Button>
           </div>
         ) : (
-          <div className="rounded-2xl bg-white/80 border border-rose-100 p-6 space-y-4">
-            <p className="text-sm text-rose-800/70">
-              Отправьте эту ссылку партнёру. Когда он присоединится, выберите дату «вместе с».
+          <div className="rounded-2xl bg-[var(--lb-card)] border border-[var(--lb-border)] p-6 space-y-4">
+            <p className="text-sm text-[var(--lb-muted)]">
+              Отправьте ссылку партнёру. После присоединения выберите дату «вместе с».
             </p>
             <div className="flex gap-2">
               <Input readOnly value={inviteUrl} className="text-xs" />
@@ -96,17 +86,13 @@ export function PairPage() {
                 {copied ? '✓' : 'Копировать'}
               </Button>
             </div>
-            <p className="text-xs text-rose-500">Ожидаем партнёра…</p>
+            <p className="text-xs text-[var(--lb-gold)]">Ожидаем партнёра…</p>
           </div>
         )}
 
-        {couple && !isComplete && couple.together_since && (
-          <p className="text-center text-sm text-rose-600">Партнёр скоро завершит настройку</p>
-        )}
-
         {couple && couple.status === 'active' && !couple.together_since && (
-          <div className="rounded-2xl bg-white/80 border border-rose-100 p-6 space-y-3">
-            <label className="text-sm font-medium text-rose-700">Мы вместе с</label>
+          <div className="rounded-2xl bg-[var(--lb-card)] border border-[var(--lb-border)] p-6 space-y-3">
+            <label className="lb-label">Мы вместе с</label>
             <Input type="date" value={since} onChange={(e) => setSince(e.target.value)} />
             <Button onClick={handleSetSince} disabled={busy || !since} className="w-full">
               Сохранить дату
@@ -116,9 +102,9 @@ export function PairPage() {
       </div>
       <div className="text-center mt-8">
         <Button variant="ghost" onClick={() => signOut()}>
-          Выйти из аккаунта
+          Выйти
         </Button>
       </div>
-    </AppShell>
+    </SetupShell>
   )
 }

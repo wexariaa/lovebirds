@@ -1,29 +1,62 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "DM Sans", system-ui, sans-serif;
-  --color-rose-50: #fff1f2;
-  --color-rose-100: #ffe4e6;
-  --color-rose-200: #fecdd3;
-  --color-rose-400: #fb7185;
-  --color-rose-500: #f43f5e;
-  --color-rose-600: #e11d48;
-  --color-rose-700: #be123c;
-  --color-blush-900: #4c0519;
+  --font-sans: "Outfit", system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+}
+
+:root {
+  --lb-bg: #1a0f1e;
+  --lb-surface: #261a2e;
+  --lb-card: #2f2238;
+  --lb-border: #4a3558;
+  --lb-text: #faf4f0;
+  --lb-muted: #b8a3c4;
+  --lb-accent: #c45c8a;
+  --lb-accent-soft: #4a2a42;
+  --lb-gold: #d4a574;
+  --lb-sea: #1e3a4a;
+  --lb-sea-hover: #2a4d62;
+  --lb-ship: #5c7a8a;
+  --lb-hit: #c45c5c;
+  --lb-miss: #3d5566;
+}
+
+.lb-page {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(196, 92, 138, 0.25), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 50%, rgba(212, 165, 116, 0.12), transparent),
+    linear-gradient(165deg, var(--lb-bg) 0%, #120a14 50%, #0d0810 100%);
+  color: var(--lb-text);
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.lb-label {
+  @apply text-xs font-medium text-[var(--lb-muted)] mb-1 block;
 }
 
 body {
-  @apply bg-gradient-to-br from-rose-50 via-white to-rose-100 min-h-screen font-sans text-blush-900 antialiased;
+  @apply font-sans antialiased;
+  background: var(--lb-bg);
+  color: var(--lb-text);
+}
+
+.safe-pb {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
 @keyframes heart-pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.35); opacity: 1; filter: drop-shadow(0 0 20px #f43f5e); }
+  50% { transform: scale(1.35); opacity: 1; filter: drop-shadow(0 0 24px var(--lb-accent)); }
 }
 
 .heart-active {
   animation: heart-pulse 0.6s ease-in-out infinite;
-  color: #f43f5e;
 }
 
 @keyframes slide-up {

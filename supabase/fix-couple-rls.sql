@@ -76,3 +76,10 @@ CREATE POLICY "moods_all" ON public.daily_moods
   FOR ALL
   USING (public.is_couple_member(couple_id))
   WITH CHECK (public.is_couple_member(couple_id) AND user_id = auth.uid());
+
+-- === battleship_games ===
+DROP POLICY IF EXISTS "battleship_all" ON public.battleship_games;
+CREATE POLICY "battleship_all" ON public.battleship_games
+  FOR ALL
+  USING (public.is_couple_member(couple_id))
+  WITH CHECK (public.is_couple_member(couple_id));

@@ -11,9 +11,11 @@ export function Card({
 }) {
   return (
     <section
-      className={`rounded-2xl bg-white/80 backdrop-blur border border-rose-100 shadow-sm p-4 sm:p-5 ${className}`}
+      className={`rounded-2xl bg-[var(--lb-card)]/90 backdrop-blur border border-[var(--lb-border)] shadow-lg shadow-black/10 p-4 sm:p-5 ${className}`}
     >
-      {title && <h2 className="text-lg font-semibold text-rose-700 mb-3">{title}</h2>}
+      {title && (
+        <h2 className="font-display text-xl text-[var(--lb-gold)] mb-3">{title}</h2>
+      )}
       {children}
     </section>
   )

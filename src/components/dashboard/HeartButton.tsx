@@ -40,7 +40,7 @@ export function HeartButton() {
     }
   }, [coupleId, user])
 
-  useCoupleSync(coupleId, 'heart_pulses', checkPulses, [checkPulses])
+  useCoupleSync(coupleId, 'heart_pulses', checkPulses, [checkPulses], { events: 'INSERT' })
 
   const send = async () => {
     if (!coupleId || !user) return
@@ -64,14 +64,14 @@ export function HeartButton() {
         >
           ❤️
         </button>
-        <p className="text-sm text-rose-600 mt-2">Нажми — партнёр почувствует</p>
+        <p className="text-sm text-[var(--lb-muted)] mt-2">Нажми — партнёр почувствует</p>
         <Button variant="secondary" className="mt-3 w-full sm:w-auto" onClick={send}>
           Отправить пульс
         </Button>
       </Card>
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 toast-enter bg-rose-600 text-white px-5 py-3 rounded-2xl shadow-lg text-sm font-medium max-w-[90vw] text-center">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 toast-enter bg-[var(--lb-accent)] text-white px-5 py-3 rounded-2xl shadow-lg text-sm font-medium max-w-[90vw] text-center">
           Твой партнёр думает о тебе ❤️
         </div>
       )}

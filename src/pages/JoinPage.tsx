@@ -122,14 +122,14 @@ export function JoinPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen lb-page flex items-center justify-center p-4">
       <form
         onSubmit={handleJoin}
-        className="w-full max-w-md rounded-3xl bg-white/90 border border-rose-100 shadow-xl p-8 space-y-4"
+        className="w-full max-w-md rounded-3xl bg-[var(--lb-card)] border border-[var(--lb-border)] shadow-xl p-8 space-y-4"
       >
         <div className="text-center">
           <span className="text-4xl">💕</span>
-          <h1 className="text-2xl font-bold text-rose-600 mt-2">Присоединиться к паре</h1>
+          <h1 className="font-display text-2xl text-[var(--lb-accent)] mt-2">Присоединиться к паре</h1>
         </div>
         <p className="text-sm text-rose-800/70 text-center">
           Выберите дату, с которой вы считаете, что вы вместе.

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCouple } from '../../context/CoupleContext'
-import { useCoupleSync } from '../../lib/realtime-sync'
+import { sameById, useCoupleSync } from '../../lib/realtime-sync'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Input } from '../ui/Input'
@@ -21,6 +21,7 @@ export function ChatWidget() {
   const [messages, setMessages] = useState<Message[]>([])
   const [text, setText] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollOnNextRef = useRef(false)
 
   const load = useCallback(async () => {
     if (!coupleId) return
@@ -34,17 +35,23 @@ export function ChatWidget() {
       return
     }
     const now = Date.now()
-    setMessages(
-      (data ?? []).filter(
-        (m) => !m.expires_at || new Date(m.expires_at).getTime() > now,
-      ) as Message[],
-    )
-  }, [coupleId])
+    const next = (data ?? []).filter(
+      (m) => !m.expires_at || new Date(m.expires_at).getTime() > now,
+    ) as Message[]
+    setMessages((prev) => {
+      if (sameById(prev, next)) return prev
+      const added = next.length > prev.length ? next[next.length - 1] : null
+      if (added && added.sender_id !== user?.id) scrollOnNextRef.current = true
+      return next
+    })
+  }, [coupleId, user?.id])
 
-  useCoupleSync(coupleId, 'chat_messages', load, [load])
+  useCoupleSync(coupleId, 'chat_messages', load, [load], { events: '*' })
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!scrollOnNextRef.current) return
+    scrollOnNextRef.current = false
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [messages])
 
   const toggleMode = async () => {
@@ -79,6 +86,7 @@ export function ChatWidget() {
       return
     }
     if (data) {
+      scrollOnNextRef.current = true
       setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, data as Message]))
     }
   }
@@ -86,21 +94,21 @@ export function ChatWidget() {
   return (
     <Card title="Чат" className="flex flex-col max-h-[420px]">
       <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-        <span className="text-xs text-rose-500">
-          Режим: {profile?.chat_mode === 'ephemeral' ? 'удаление через 24ч' : 'вечное хранение'}
+        <span className="text-xs text-[var(--lb-muted)]">
+          {profile?.chat_mode === 'ephemeral' ? '24ч' : 'навсегда'}
         </span>
         <Button variant="ghost" className="!text-xs !py-1" onClick={toggleMode}>
-          Переключить режим
+          Режим чата
         </Button>
       </div>
-      <div className="flex-1 overflow-y-auto space-y-2 min-h-[200px] max-h-[280px] pr-1">
+      <div className="flex-1 overflow-y-auto space-y-2 min-h-[200px] max-h-[280px] pr-1 overscroll-contain">
         {messages.map((m) => (
           <div
             key={m.id}
             className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
               m.sender_id === user?.id
-                ? 'ml-auto bg-rose-500 text-white'
-                : 'bg-rose-50 text-rose-900'
+                ? 'ml-auto bg-[var(--lb-accent)] text-white'
+                : 'bg-[var(--lb-accent-soft)] text-[var(--lb-text)]'
             }`}
           >
             {m.content}

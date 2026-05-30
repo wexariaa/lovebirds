@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { validateDisplayName, validateLogin } from '../lib/auth-login'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 
@@ -9,7 +10,7 @@ export function LoginPage() {
   const [searchParams] = useSearchParams()
   const afterLogin = searchParams.get('redirect') || '/pair'
   const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [email, setEmail] = useState('')
+  const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -24,11 +25,25 @@ export function LoginPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    const loginErr = validateLogin(login)
+    if (loginErr) {
+      setError(loginErr)
+      return
+    }
+    if (mode === 'register') {
+      const nameErr = validateDisplayName(name)
+      if (nameErr) {
+        setError(nameErr)
+        return
+      }
+    }
+
     setBusy(true)
     const res =
       mode === 'login'
-        ? await signIn(email, password)
-        : await signUp(email, password, name)
+        ? await signIn(login, password)
+        : await signUp(login, password, name.trim())
     if (res.error) {
       setError(res.error)
       setBusy(false)
@@ -38,33 +53,57 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-3xl bg-white/90 border border-rose-100 shadow-xl p-8">
+    <div className="min-h-screen flex items-center justify-center p-4 lb-page">
+      <div className="w-full max-w-md rounded-3xl bg-[var(--lb-card)] border border-[var(--lb-border)] shadow-2xl shadow-black/20 p-8">
         <div className="text-center mb-8">
-          <span className="text-5xl">❤️</span>
-          <h1 className="text-3xl font-bold text-rose-600 mt-2">Lovebirds</h1>
-          <p className="text-rose-800/60 mt-1 text-sm">Только для вас двоих</p>
+          <p className="font-display text-4xl text-[var(--lb-accent)]">Lovebirds</p>
+          <p className="text-[var(--lb-muted)] mt-2 text-sm">Только для вас двоих</p>
+        </div>
+
+        <div className="flex rounded-xl bg-[var(--lb-bg)] p-1 mb-6">
+          <button
+            type="button"
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${
+              mode === 'login'
+                ? 'bg-[var(--lb-accent)] text-white'
+                : 'text-[var(--lb-muted)]'
+            }`}
+            onClick={() => setMode('login')}
+          >
+            Вход
+          </button>
+          <button
+            type="button"
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${
+              mode === 'register'
+                ? 'bg-[var(--lb-accent)] text-white'
+                : 'text-[var(--lb-muted)]'
+            }`}
+            onClick={() => setMode('register')}
+          >
+            Регистрация
+          </button>
         </div>
 
         <form onSubmit={submit} className="space-y-4">
           {mode === 'register' && (
             <div>
-              <label className="text-xs font-medium text-rose-700/80 mb-1 block">Имя</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} required />
+              <label className="lb-label">Имя</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Как вас звать" />
             </div>
           )}
           <div>
-            <label className="text-xs font-medium text-rose-700/80 mb-1 block">Email</label>
+            <label className="lb-label">Логин</label>
             <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
+              placeholder="latin_letters_123"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-rose-700/80 mb-1 block">Пароль</label>
+            <label className="lb-label">Пароль</label>
             <Input
               type="password"
               value={password}
@@ -74,19 +113,15 @@ export function LoginPage() {
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             />
           </div>
-          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-xl px-3 py-2">
+              {error}
+            </p>
+          )}
           <Button type="submit" className="w-full" disabled={busy}>
-            {busy ? 'Входим…' : mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
+            {busy ? 'Подождите…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}
           </Button>
         </form>
-
-        <button
-          type="button"
-          className="w-full mt-4 text-sm text-rose-600 hover:underline"
-          onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-        >
-          {mode === 'login' ? 'Нет аккаунта? Регистрация' : 'Уже есть аккаунт? Войти'}
-        </button>
       </div>
     </div>
   )

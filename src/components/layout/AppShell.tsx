@@ -1,31 +1,37 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { Button } from '../ui/Button'
+
+const nav = [
+  { to: '/', label: 'Главная', icon: '🏠' },
+  { to: '/games', label: 'Игры', icon: '⚓' },
+  { to: '/album', label: 'Альбом', icon: '📷' },
+] as const
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile, signOut } = useAuth()
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-40 border-b border-rose-100 bg-white/90 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl text-rose-600">
-            <span>❤️</span> Lovebirds
+    <div className="min-h-screen flex flex-col lb-page">
+      <header className="sticky top-0 z-40 border-b border-[var(--lb-border)] bg-[var(--lb-surface)]/85 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <Link to="/" className="font-display text-2xl text-[var(--lb-accent)] tracking-tight">
+            Lovebirds
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {profile?.avatar_url ? (
               <img
                 src={profile.avatar_url}
                 alt=""
-                className="w-9 h-9 rounded-full object-cover ring-2 ring-rose-200"
+                className="w-9 h-9 rounded-full object-cover ring-2 ring-[var(--lb-gold)]/40"
               />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center text-rose-500">
+              <div className="w-9 h-9 rounded-full bg-[var(--lb-accent-soft)] flex items-center justify-center text-[var(--lb-accent)] font-semibold">
                 {profile?.display_name?.[0]?.toUpperCase() ?? '?'}
               </div>
             )}
-            <span className="hidden sm:inline text-sm text-rose-800/80">
+            <span className="hidden sm:inline text-sm text-[var(--lb-muted)] max-w-[120px] truncate">
               {profile?.display_name}
             </span>
             <Button variant="ghost" className="!py-1.5 !px-2 text-xs" onClick={() => signOut()}>
@@ -34,7 +40,30 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6">{children}</main>
+
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6 pb-24">{children}</main>
+
+      <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-[var(--lb-border)] bg-[var(--lb-surface)]/95 backdrop-blur-md safe-pb">
+        <div className="max-w-lg mx-auto flex justify-around py-2">
+          {nav.map(({ to, label, icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                `flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl text-xs font-medium transition ${
+                  isActive
+                    ? 'text-[var(--lb-accent)] bg-[var(--lb-accent-soft)]'
+                    : 'text-[var(--lb-muted)] hover:text-[var(--lb-text)]'
+                }`
+              }
+            >
+              <span className="text-lg leading-none">{icon}</span>
+              {label}
+            </NavLink>
+          ))}
+        </div>
+      </nav>
     </div>
   )
 }

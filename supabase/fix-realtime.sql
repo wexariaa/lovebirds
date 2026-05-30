@@ -28,7 +28,8 @@ BEGIN
     'album_photos',
     'couple_members',
     'couples',
-    'activity_ideas'
+    'activity_ideas',
+    'battleship_games'
   ]
   LOOP
     BEGIN

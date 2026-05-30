@@ -337,7 +337,7 @@ export function useCouple() {
   return ctx
 }
 
-async function seedCoupleData(coupleId: string, userId: string) {
+async function seedCoupleData(coupleId: string, _userId: string) {
   const { count } = await supabase
     .from('activity_ideas')
     .select('*', { count: 'exact', head: true })
@@ -354,25 +354,4 @@ async function seedCoupleData(coupleId: string, userId: string) {
     )
   }
 
-  const { data: savings } = await supabase
-    .from('savings_goals')
-    .select('couple_id')
-    .eq('couple_id', coupleId)
-    .maybeSingle()
-  if (!savings) await supabase.from('savings_goals').insert({ couple_id: coupleId })
-
-  const { data: game } = await supabase
-    .from('tic_tac_toe_games')
-    .select('couple_id')
-    .eq('couple_id', coupleId)
-    .maybeSingle()
-  if (!game) {
-    await supabase.from('tic_tac_toe_games').insert({
-      couple_id: coupleId,
-      board: Array(9).fill(''),
-      current_turn: userId,
-      player_x: userId,
-      status: 'playing',
-    })
-  }
 }

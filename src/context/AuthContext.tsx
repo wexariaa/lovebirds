@@ -11,6 +11,7 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { readCachedSession } from '../lib/auth-cache'
+import { loginToEmail, normalizeLogin } from '../lib/auth-login'
 import { friendlyNetworkError, isRetryableError, sleep } from '../lib/network'
 import type { Profile } from '../types/database'
 
@@ -19,8 +20,8 @@ interface AuthState {
   user: User | null
   profile: Profile | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, displayName: string) => Promise<{ error: string | null }>
+  signIn: (login: string, password: string) => Promise<{ error: string | null }>
+  signUp: (login: string, password: string, displayName: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -111,7 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loadProfile])
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (login: string, password: string) => {
+    const email = loginToEmail(login)
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -129,19 +131,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: 'Не удалось войти. Проверьте интернет и попробуйте снова.' }
   }, [])
 
-  const signUp = useCallback(async (email: string, password: string, displayName: string) => {
+  const signUp = useCallback(async (login: string, password: string, displayName: string) => {
+    const email = loginToEmail(login)
+    const loginNorm = normalizeLogin(login)
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { display_name: displayName } },
+          options: { data: { display_name: displayName.trim(), login: loginNorm } },
         })
         if (!error) {
           if (data.session) return { error: null }
           return {
             error:
-              'Аккаунт создан. Войдите с тем же email и паролем (или подтвердите email в Supabase).',
+              'Аккаунт создан. Войдите с тем же логином и паролем (или отключите Confirm email в Supabase).',
           }
         }
         const msg = error.message

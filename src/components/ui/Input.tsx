@@ -3,7 +3,7 @@ import type { InputHTMLAttributes } from 'react'
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`w-full rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 ${className}`}
+      className={`w-full rounded-xl border border-[var(--lb-border)] bg-[var(--lb-bg)] text-[var(--lb-text)] placeholder:text-[var(--lb-muted)]/60 px-3 py-2.5 text-sm outline-none focus:border-[var(--lb-gold)] focus:ring-2 focus:ring-[var(--lb-gold)]/20 ${className}`}
       {...props}
     />
   )
@@ -15,7 +15,7 @@ export function Textarea({
 }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
-      className={`w-full rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 resize-none ${className}`}
+      className={`w-full rounded-xl border border-[var(--lb-border)] bg-[var(--lb-bg)] text-[var(--lb-text)] px-3 py-2.5 text-sm outline-none focus:border-[var(--lb-gold)] focus:ring-2 focus:ring-[var(--lb-gold)]/20 resize-none ${className}`}
       {...props}
     />
   )
