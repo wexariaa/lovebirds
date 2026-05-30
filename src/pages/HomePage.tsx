@@ -1,10 +1,8 @@
 import { Link } from 'react-router-dom'
 import { useCouple } from '../context/CoupleContext'
 import { ActivityWidget } from '../components/dashboard/ActivityWidget'
-import { AvatarUpload } from '../components/dashboard/AvatarUpload'
 import { ChatWidget } from '../components/dashboard/ChatWidget'
 import { ComplimentsWidget } from '../components/dashboard/ComplimentsWidget'
-import { DissolveButton } from '../components/dashboard/DissolveButton'
 import { FoodProfile } from '../components/dashboard/FoodProfile'
 import { HeartButton } from '../components/dashboard/HeartButton'
 import { ImportantDates } from '../components/dashboard/ImportantDates'
@@ -32,21 +30,18 @@ export function HomePage() {
         <ImportantDates />
         <MoodWidget />
         <ActivityWidget />
-        <AvatarUpload />
         <ChatWidget />
         <FoodProfile />
       </div>
 
       <Link
         to="/album"
-        className="mt-6 block rounded-2xl border border-[var(--lb-border)] bg-[var(--lb-card)] p-5 text-center hover:border-[var(--lb-gold)]/50 transition"
+        className="mt-6 block lb-card-peach p-5 text-center hover:border-[var(--lb-gold)]/60 transition"
       >
         <span className="text-2xl">📷</span>
-        <p className="font-medium text-[var(--lb-text)] mt-2">Общий альбом</p>
+        <p className="font-display text-lg text-[var(--lb-text)] mt-2">Общий альбом</p>
         <p className="text-xs text-[var(--lb-muted)]">Все фото — на отдельной странице</p>
       </Link>
-
-      <DissolveButton />
     </>
   )
 }

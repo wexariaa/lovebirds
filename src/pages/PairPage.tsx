@@ -18,7 +18,7 @@ export function PairPage() {
   const [copied, setCopied] = useState(false)
 
   if (!user) return <Navigate to="/login" replace />
-  if (resolved && !loading && isComplete) return <Navigate to="/" replace />
+  if (resolved && !loading && isComplete) return <Navigate to="/home" replace />
 
   const inviteUrl =
     typeof window !== 'undefined' && couple?.id
@@ -66,17 +66,21 @@ export function PairPage() {
         <h1 className="font-display text-2xl text-center text-[var(--lb-text)]">Свяжите ваши сердца</h1>
 
         {!couple ? (
-          <div className="rounded-2xl bg-[var(--lb-card)] border border-[var(--lb-border)] p-6 text-center space-y-4">
+          <div className="lb-card p-6 text-center space-y-4">
             <p className="text-[var(--lb-muted)] text-sm">
               Создайте пару и отправьте ссылку партнёру.
             </p>
-            {error && <p className="text-red-400 text-sm">{error}</p>}
-            <Button onClick={handleCreate} disabled={busy} className="w-full">
+            {error && (
+              <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                {error}
+              </p>
+            )}
+            <Button onClick={handleCreate} disabled={busy} className="w-full !rounded-full">
               Создать пару
             </Button>
           </div>
         ) : (
-          <div className="rounded-2xl bg-[var(--lb-card)] border border-[var(--lb-border)] p-6 space-y-4">
+          <div className="lb-card p-6 space-y-4">
             <p className="text-sm text-[var(--lb-muted)]">
               Отправьте ссылку партнёру. После присоединения выберите дату «вместе с».
             </p>
@@ -91,7 +95,7 @@ export function PairPage() {
         )}
 
         {couple && couple.status === 'active' && !couple.together_since && (
-          <div className="rounded-2xl bg-[var(--lb-card)] border border-[var(--lb-border)] p-6 space-y-3">
+          <div className="lb-card p-6 space-y-3">
             <label className="lb-label">Мы вместе с</label>
             <Input type="date" value={since} onChange={(e) => setSince(e.target.value)} />
             <Button onClick={handleSetSince} disabled={busy || !since} className="w-full">

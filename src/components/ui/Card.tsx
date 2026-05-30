@@ -10,11 +10,9 @@ export function Card({
   className?: string
 }) {
   return (
-    <section
-      className={`rounded-2xl bg-[var(--lb-card)]/90 backdrop-blur border border-[var(--lb-border)] shadow-lg shadow-black/10 p-4 sm:p-5 ${className}`}
-    >
+    <section className={`lb-card-peach p-4 sm:p-5 ${className}`}>
       {title && (
-        <h2 className="font-display text-xl text-[var(--lb-gold)] mb-3">{title}</h2>
+        <h2 className="font-display text-xl text-[var(--lb-accent)] mb-3">{title}</h2>
       )}
       {children}
     </section>

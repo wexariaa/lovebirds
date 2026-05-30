@@ -2,31 +2,35 @@
 
 @theme {
   --font-sans: "Outfit", system-ui, sans-serif;
-  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-script: "Great Vibes", cursive;
 }
 
 :root {
-  --lb-bg: #1a0f1e;
-  --lb-surface: #261a2e;
-  --lb-card: #2f2238;
-  --lb-border: #4a3558;
-  --lb-text: #faf4f0;
-  --lb-muted: #b8a3c4;
-  --lb-accent: #c45c8a;
-  --lb-accent-soft: #4a2a42;
-  --lb-gold: #d4a574;
-  --lb-sea: #1e3a4a;
-  --lb-sea-hover: #2a4d62;
-  --lb-ship: #5c7a8a;
+  --lb-bg: #faf5f7;
+  --lb-surface: #ffffff;
+  --lb-card: #fff5f0;
+  --lb-card-alt: #fff8eb;
+  --lb-border: #f0d4dc;
+  --lb-text: #4a1528;
+  --lb-muted: #8b6370;
+  --lb-accent: #7a1530;
+  --lb-accent-hover: #5c0f24;
+  --lb-accent-soft: #fce8ee;
+  --lb-peach: #ffe8de;
+  --lb-gold: #c4854a;
+  --lb-sea: #dceef5;
+  --lb-sea-hover: #c5e0eb;
+  --lb-ship: #6a8a9a;
   --lb-hit: #c45c5c;
-  --lb-miss: #3d5566;
+  --lb-miss: #b8ccd6;
 }
 
 .lb-page {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(196, 92, 138, 0.25), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 50%, rgba(212, 165, 116, 0.12), transparent),
-    linear-gradient(165deg, var(--lb-bg) 0%, #120a14 50%, #0d0810 100%);
+    radial-gradient(ellipse 90% 60% at 50% -20%, rgba(255, 200, 210, 0.45), transparent),
+    radial-gradient(ellipse 50% 40% at 100% 0%, rgba(255, 235, 200, 0.35), transparent),
+    linear-gradient(180deg, #fff9fb 0%, var(--lb-bg) 45%, #f8eef2 100%);
   color: var(--lb-text);
   min-height: 100vh;
 }
@@ -34,6 +38,11 @@
 .font-display {
   font-family: var(--font-display);
   font-weight: 600;
+}
+
+.font-script {
+  font-family: var(--font-script);
+  font-weight: 400;
 }
 
 .lb-label {
@@ -50,9 +59,21 @@ body {
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
+.lb-card {
+  @apply rounded-3xl border border-[var(--lb-border)] bg-[var(--lb-surface)] shadow-sm;
+}
+
+.lb-card-peach {
+  @apply rounded-3xl border border-[var(--lb-border)] bg-[var(--lb-card)] shadow-sm;
+}
+
+.lb-card-cream {
+  @apply rounded-3xl border border-[var(--lb-border)] bg-[var(--lb-card-alt)] shadow-sm;
+}
+
 @keyframes heart-pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.35); opacity: 1; filter: drop-shadow(0 0 24px var(--lb-accent)); }
+  50% { transform: scale(1.35); opacity: 1; filter: drop-shadow(0 0 20px rgba(122, 21, 48, 0.45)); }
 }
 
 .heart-active {
