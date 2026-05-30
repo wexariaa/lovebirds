@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCouple } from '../../context/CoupleContext'
+import { useCoupleSync } from '../../lib/realtime-sync'
 import { randomItem } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
@@ -14,30 +15,16 @@ export function ActivityWidget() {
   const [suggestion, setSuggestion] = useState<string | null>(null)
   const [custom, setCustom] = useState('')
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!coupleId) return
     const { data } = await supabase
       .from('activity_ideas')
       .select('id, text')
       .eq('couple_id', coupleId)
     setIdeas(data ?? [])
-  }
-
-  useEffect(() => {
-    load()
-    if (!coupleId) return
-    const ch = supabase
-      .channel(`ideas-${coupleId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'activity_ideas', filter: `couple_id=eq.${coupleId}` },
-        () => load(),
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-    }
   }, [coupleId])
+
+  useCoupleSync(coupleId, 'activity_ideas', load, [load])
 
   const suggest = () => {
     if (ideas.length) setSuggestion(randomItem(ideas).text)

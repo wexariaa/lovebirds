@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useCouple } from '../../context/CoupleContext'
+import { useCoupleSync } from '../../lib/realtime-sync'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Input } from '../ui/Input'
@@ -10,31 +11,25 @@ export function SavingsWidget() {
   const [goal, setGoal] = useState({ goal_name: '', target_amount: 0, current_amount: 0 })
   const [deposit, setDeposit] = useState('')
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!coupleId) return
-    const { data } = await supabase
+    let { data } = await supabase
       .from('savings_goals')
       .select('*')
       .eq('couple_id', coupleId)
-      .single()
-    if (data) setGoal(data)
-  }
-
-  useEffect(() => {
-    load()
-    if (!coupleId) return
-    const ch = supabase
-      .channel(`savings-${coupleId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'savings_goals', filter: `couple_id=eq.${coupleId}` },
-        () => load(),
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
+      .maybeSingle()
+    if (!data) {
+      const { data: created } = await supabase
+        .from('savings_goals')
+        .insert({ couple_id: coupleId })
+        .select()
+        .single()
+      data = created
     }
+    if (data) setGoal(data)
   }, [coupleId])
+
+  useCoupleSync(coupleId, 'savings_goals', load, [load])
 
   const saveMeta = async () => {
     if (!coupleId) return

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCouple } from '../../context/CoupleContext'
+import { useCoupleSync } from '../../lib/realtime-sync'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Input } from '../ui/Input'
@@ -11,6 +12,7 @@ type Message = {
   sender_id: string
   content: string
   created_at: string
+  expires_at?: string | null
 }
 
 export function ChatWidget() {
@@ -20,38 +22,26 @@ export function ChatWidget() {
   const [text, setText] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!coupleId) return
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('chat_messages')
       .select('*')
       .eq('couple_id', coupleId)
       .order('created_at', { ascending: true })
+    if (error) {
+      console.error('chat load:', error.message)
+      return
+    }
     const now = Date.now()
     setMessages(
       (data ?? []).filter(
         (m) => !m.expires_at || new Date(m.expires_at).getTime() > now,
-      ),
+      ) as Message[],
     )
-  }
-
-  useEffect(() => {
-    load()
-    if (!coupleId) return
-    const ch = supabase
-      .channel(`chat-${coupleId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `couple_id=eq.${coupleId}` },
-        (p) => {
-          setMessages((prev) => [...prev, p.new as Message])
-        },
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-    }
   }, [coupleId])
+
+  useCoupleSync(coupleId, 'chat_messages', load, [load])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -67,17 +57,30 @@ export function ChatWidget() {
   const send = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!coupleId || !user || !text.trim()) return
+    const content = text.trim()
+    setText('')
     const expires_at =
       profile?.chat_mode === 'ephemeral'
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null
-    await supabase.from('chat_messages').insert({
-      couple_id: coupleId,
-      sender_id: user.id,
-      content: text.trim(),
-      expires_at,
-    })
-    setText('')
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert({
+        couple_id: coupleId,
+        sender_id: user.id,
+        content,
+        expires_at,
+      })
+      .select()
+      .single()
+    if (error) {
+      console.error('chat send:', error.message)
+      setText(content)
+      return
+    }
+    if (data) {
+      setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, data as Message]))
+    }
   }
 
   return (

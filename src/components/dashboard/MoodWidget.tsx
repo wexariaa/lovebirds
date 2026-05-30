@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCouple } from '../../context/CoupleContext'
 import { MOOD_EMOJIS } from '../../lib/constants'
+import { useCoupleSync } from '../../lib/realtime-sync'
 import { Card } from '../ui/Card'
 
 export function MoodWidget() {
@@ -13,7 +14,7 @@ export function MoodWidget() {
 
   const today = new Date().toISOString().slice(0, 10)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!coupleId) return
     const { data } = await supabase
       .from('daily_moods')
@@ -22,23 +23,9 @@ export function MoodWidget() {
       .eq('mood_date', today)
     setMine(data?.find((m) => m.user_id === user?.id)?.emoji ?? null)
     setTheirs(data?.find((m) => m.user_id === partner?.id)?.emoji ?? null)
-  }
+  }, [coupleId, partner?.id, user?.id, today])
 
-  useEffect(() => {
-    load()
-    if (!coupleId) return
-    const ch = supabase
-      .channel(`mood-${coupleId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'daily_moods', filter: `couple_id=eq.${coupleId}` },
-        () => load(),
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-    }
-  }, [coupleId, partner, user])
+  useCoupleSync(coupleId, 'daily_moods', load, [load])
 
   const pick = async (emoji: string) => {
     if (!coupleId || !user) return

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCouple } from '../../context/CoupleContext'
+import { useCoupleSync } from '../../lib/realtime-sync'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Input } from '../ui/Input'
@@ -13,30 +14,17 @@ export function MeetingCountdown() {
   const [draft, setDraft] = useState('')
   const [left, setLeft] = useState('')
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!coupleId) return
-    supabase
+    const { data } = await supabase
       .from('couple_meetings')
       .select('meeting_at')
       .eq('couple_id', coupleId)
       .maybeSingle()
-      .then(({ data }) => setMeetingAt(data?.meeting_at ?? null))
-
-    const ch = supabase
-      .channel(`meeting-${coupleId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'couple_meetings', filter: `couple_id=eq.${coupleId}` },
-        (p) => {
-          const row = p.new as { meeting_at?: string }
-          if (row?.meeting_at) setMeetingAt(row.meeting_at)
-        },
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-    }
+    setMeetingAt(data?.meeting_at ?? null)
   }, [coupleId])
+
+  useCoupleSync(coupleId, 'couple_meetings', load, [load])
 
   useEffect(() => {
     if (!meetingAt) {

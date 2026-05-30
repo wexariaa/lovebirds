@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCouple } from '../../context/CoupleContext'
 import { MAX_PHOTO_BYTES } from '../../lib/constants'
+import { useCoupleSync } from '../../lib/realtime-sync'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 
@@ -18,7 +19,7 @@ export function AlbumWidget() {
   const [photos, setPhotos] = useState<Photo[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!coupleId) return
     const { data } = await supabase
       .from('album_photos')
@@ -26,23 +27,9 @@ export function AlbumWidget() {
       .eq('couple_id', coupleId)
       .order('created_at', { ascending: false })
     setPhotos(data ?? [])
-  }
-
-  useEffect(() => {
-    load()
-    if (!coupleId) return
-    const ch = supabase
-      .channel(`album-${coupleId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'album_photos', filter: `couple_id=eq.${coupleId}` },
-        () => load(),
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-    }
   }, [coupleId])
+
+  useCoupleSync(coupleId, 'album_photos', load, [load])
 
   const upload = async (file: File) => {
     if (!user || !coupleId) return

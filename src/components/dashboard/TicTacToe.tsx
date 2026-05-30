@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCouple } from '../../context/CoupleContext'
+import { fetchPartnerUserId, useCoupleSync } from '../../lib/realtime-sync'
 import { checkTttWinner } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
@@ -19,55 +20,89 @@ export function TicTacToe() {
   const { user } = useAuth()
   const { coupleId, partner } = useCouple()
   const [game, setGame] = useState<Game | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const load = async () => {
-    if (!coupleId) return
-    const { data } = await supabase
+  const load = useCallback(async () => {
+    if (!coupleId || !user) return
+    setLoadError(null)
+
+    let { data, error } = await supabase
       .from('tic_tac_toe_games')
       .select('*')
       .eq('couple_id', coupleId)
-      .single()
-    if (data) {
-      let g = data as Game
-      if (data.player_o === null && partner) {
-        await supabase
-          .from('tic_tac_toe_games')
-          .update({ player_o: partner.id })
-          .eq('couple_id', coupleId)
-        g = { ...g, player_o: partner.id }
+      .maybeSingle()
+
+    if (error) {
+      console.error('ttt load:', error.message)
+      setLoadError(error.message)
+      return
+    }
+
+    const partnerId = partner?.id ?? (await fetchPartnerUserId(coupleId, user.id))
+
+    if (!data) {
+      const { data: created, error: insErr } = await supabase
+        .from('tic_tac_toe_games')
+        .insert({
+          couple_id: coupleId,
+          board: Array(9).fill(''),
+          current_turn: user.id,
+          player_x: user.id,
+          player_o: partnerId,
+          status: 'playing',
+        })
+        .select()
+        .single()
+      if (insErr) {
+        setLoadError(insErr.message)
+        return
       }
-      setGame(g)
+      data = created
+    } else if (!data.player_o && partnerId) {
+      const { data: updated, error: upErr } = await supabase
+        .from('tic_tac_toe_games')
+        .update({ player_o: partnerId })
+        .eq('couple_id', coupleId)
+        .select()
+        .single()
+      if (!upErr && updated) data = updated
+      else data = { ...data, player_o: partnerId }
     }
+
+    if (data) {
+      const board = Array.isArray(data.board) ? data.board : Array(9).fill('')
+      setGame({ ...(data as Game), board })
+    }
+  }, [coupleId, user, partner?.id])
+
+  useCoupleSync(coupleId, 'tic_tac_toe_games', load, [load])
+
+  if (!user) return <Card title="Крестики-нолики">Войдите в аккаунт</Card>
+  if (!coupleId) return <Card title="Крестики-нолики">Нет пары</Card>
+  if (loadError) {
+    return (
+      <Card title="Крестики-нолики">
+        <p className="text-sm text-red-600">Ошибка: {loadError}</p>
+        <Button variant="secondary" className="mt-2" onClick={() => void load()}>
+          Повторить
+        </Button>
+      </Card>
+    )
   }
-
-  useEffect(() => {
-    load()
-    if (!coupleId) return
-    const ch = supabase
-      .channel(`ttt-${coupleId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tic_tac_toe_games', filter: `couple_id=eq.${coupleId}` },
-        () => load(),
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-    }
-  }, [coupleId, partner])
-
-  if (!game || !user) return <Card title="Крестики-нолики">Загрузка…</Card>
+  if (!game) return <Card title="Крестики-нолики">Загрузка…</Card>
 
   const mySymbol =
     game.player_x === user.id ? 'X' : game.player_o === user.id ? 'O' : null
   const isMyTurn = game.current_turn === user.id && game.status === 'playing'
+  const waitingPartner = !game.player_o || !game.player_x
 
   const play = async (idx: number) => {
     if (!coupleId || !mySymbol || !isMyTurn || game.board[idx]) return
     const board = [...game.board]
     board[idx] = mySymbol
     const { winner, draw } = checkTttWinner(board)
-    const nextTurn = partner?.id ?? user.id
+    const partnerId = game.player_x === user.id ? game.player_o : game.player_x
+    const nextTurn = partnerId ?? user.id
     const updates: Record<string, unknown> = {
       board,
       current_turn: winner || draw ? null : nextTurn,
@@ -79,12 +114,17 @@ export function TicTacToe() {
     } else if (draw) {
       updates.status = 'draw'
     }
-    await supabase.from('tic_tac_toe_games').update(updates).eq('couple_id', coupleId)
+    const { error } = await supabase
+      .from('tic_tac_toe_games')
+      .update(updates)
+      .eq('couple_id', coupleId)
+    if (error) console.error('ttt play:', error.message)
+    else setGame((g) => (g ? { ...g, ...updates, board } as Game : g))
   }
 
   const reset = async () => {
     if (!coupleId) return
-    await supabase
+    const { error } = await supabase
       .from('tic_tac_toe_games')
       .update({
         board: Array(9).fill(''),
@@ -93,29 +133,42 @@ export function TicTacToe() {
         current_turn: game.player_x,
       })
       .eq('couple_id', coupleId)
+    if (error) console.error('ttt reset:', error.message)
+    else void load()
   }
 
   let statusText = 'Игра идёт'
-  if (game.status === 'won') {
-    statusText =
-      game.winner_id === user.id ? 'Вы победили! 🎉' : 'Партнёр победил'
+  if (waitingPartner) statusText = 'Ждём партнёра в паре…'
+  else if (game.status === 'won') {
+    statusText = game.winner_id === user.id ? 'Вы победили! 🎉' : 'Партнёр победил'
   } else if (game.status === 'draw') statusText = 'Ничья'
 
   return (
     <Card title="Крестики-нолики">
       <p className="text-sm text-rose-600 mb-3">
-        {game.status === 'playing'
-          ? isMyTurn
-            ? 'Ваш ход'
-            : 'Ход партнёра'
-          : statusText}
+        {waitingPartner
+          ? statusText
+          : game.status === 'playing'
+            ? isMyTurn
+              ? 'Ваш ход'
+              : 'Ход партнёра'
+            : statusText}
       </p>
+      {!mySymbol && !waitingPartner && (
+        <p className="text-xs text-amber-600 mb-2">Обновите страницу, если не видите свои X/O</p>
+      )}
       <div className="grid grid-cols-3 gap-2 max-w-[240px] mx-auto">
         {game.board.map((cell, i) => (
           <button
             key={i}
             type="button"
-            disabled={!isMyTurn || Boolean(cell) || game.status !== 'playing'}
+            disabled={
+              waitingPartner ||
+              !mySymbol ||
+              !isMyTurn ||
+              Boolean(cell) ||
+              game.status !== 'playing'
+            }
             onClick={() => play(i)}
             className="aspect-square rounded-xl bg-rose-50 text-2xl font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
           >

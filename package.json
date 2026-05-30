@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test:join": "node scripts/test-join.mjs"
+    "test:join": "node scripts/test-join.mjs",
+    "test:features": "node scripts/test-features.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",

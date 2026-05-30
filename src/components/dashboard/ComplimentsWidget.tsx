@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCouple } from '../../context/CoupleContext'
 import { DEFAULT_COMPLIMENTS } from '../../lib/constants'
+import { useCoupleSync } from '../../lib/realtime-sync'
 import { randomItem } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
@@ -14,7 +15,7 @@ export function ComplimentsWidget() {
   const { coupleId } = useCouple()
   const [feed, setFeed] = useState<Compliment[]>([])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!coupleId) return
     const { data } = await supabase
       .from('compliments')
@@ -23,23 +24,9 @@ export function ComplimentsWidget() {
       .order('created_at', { ascending: false })
       .limit(5)
     setFeed(data ?? [])
-  }
-
-  useEffect(() => {
-    load()
-    if (!coupleId) return
-    const ch = supabase
-      .channel(`compliments-${coupleId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'compliments', filter: `couple_id=eq.${coupleId}` },
-        () => load(),
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-    }
   }, [coupleId])
+
+  useCoupleSync(coupleId, 'compliments', load, [load])
 
   const send = async () => {
     if (!coupleId || !user) return

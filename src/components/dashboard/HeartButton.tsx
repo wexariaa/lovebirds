@@ -1,52 +1,56 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCouple } from '../../context/CoupleContext'
+import { useCoupleSync } from '../../lib/realtime-sync'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
+
+function triggerPulse(
+  setActive: (v: boolean) => void,
+  setToast: (v: boolean) => void,
+) {
+  setActive(true)
+  setToast(true)
+  window.setTimeout(() => setActive(false), 5000)
+  window.setTimeout(() => setToast(false), 5000)
+}
 
 export function HeartButton() {
   const { user } = useAuth()
   const { coupleId } = useCouple()
   const [active, setActive] = useState(false)
   const [toast, setToast] = useState(false)
+  const lastSeenIdRef = useRef<string | null>(null)
 
-  useEffect(() => {
+  const checkPulses = useCallback(async () => {
     if (!coupleId || !user) return
-
-    const ch = supabase
-      .channel(`hearts-${coupleId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'heart_pulses',
-          filter: `couple_id=eq.${coupleId}`,
-        },
-        (payload) => {
-          const row = payload.new as { sender_id: string }
-          if (row.sender_id !== user.id) {
-            setActive(true)
-            setToast(true)
-            setTimeout(() => setActive(false), 5000)
-            setTimeout(() => setToast(false), 5000)
-          }
-        },
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(ch)
+    const { data, error } = await supabase
+      .from('heart_pulses')
+      .select('id, sender_id, created_at')
+      .eq('couple_id', coupleId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error || !data) return
+    if (data.id === lastSeenIdRef.current) return
+    lastSeenIdRef.current = data.id
+    if (data.sender_id !== user.id) {
+      triggerPulse(setActive, setToast)
     }
   }, [coupleId, user])
 
+  useCoupleSync(coupleId, 'heart_pulses', checkPulses, [checkPulses])
+
   const send = async () => {
     if (!coupleId || !user) return
-    await supabase.from('heart_pulses').insert({
-      couple_id: coupleId,
-      sender_id: user.id,
-    })
+    const { data, error } = await supabase
+      .from('heart_pulses')
+      .insert({ couple_id: coupleId, sender_id: user.id })
+      .select('id')
+      .single()
+    if (error) console.error('heart send:', error.message)
+    else if (data) lastSeenIdRef.current = data.id
   }
 
   return (
