@@ -36,6 +36,39 @@ function log(step, ok, detail = '') {
   console.log(`${ok ? '✓' : '✗'} ${step}${detail ? ': ' + detail : ''}`)
 }
 
+async function testBothCreated() {
+  console.log('--- both created links')
+  const clientA = createClient(url, key, { auth: { persistSession: false } })
+  const clientB = createClient(url, key, { auth: { persistSession: false } })
+  const t = Date.now() + 1
+  await clientA.auth.signUp({ email: `solo-a-${t}@test.local`, password: pass })
+  await clientB.auth.signUp({ email: `solo-b-${t}@test.local`, password: pass })
+  const userA = (await clientA.auth.getSession()).data.session?.user
+  const userB = (await clientB.auth.getSession()).data.session?.user
+  if (!userA || !userB) {
+    log('Both-created session', false, 'no session')
+    return
+  }
+  const idA = randomUUID()
+  const idB = randomUUID()
+  await clientA.from('couples').insert({ id: idA, status: 'pending' })
+  await clientA.from('couple_members').insert({ couple_id: idA, user_id: userA.id, role: 'a' })
+  await clientB.from('couples').insert({ id: idB, status: 'pending' })
+  await clientB.from('couple_members').insert({ couple_id: idB, user_id: userB.id, role: 'a' })
+
+  const { data: statusBefore } = await clientB.rpc('check_invite_status', { p_couple_id: idA })
+  log('B can join A (check ok)', statusBefore === 'ok', statusBefore ?? '')
+
+  const { error: joinErr } = await clientB.rpc('join_couple', {
+    p_couple_id: idA,
+    p_together_since: '2024-06-01',
+  })
+  log('B joins A after own link', !joinErr, joinErr?.message ?? 'ok')
+
+  const { data: deadB } = await clientB.from('couples').select('id').eq('id', idB).maybeSingle()
+  log('B solo link removed', !deadB, deadB?.id ?? 'gone')
+}
+
 async function main() {
   console.log('Supabase:', url)
   console.log('---')
