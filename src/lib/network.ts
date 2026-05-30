@@ -20,6 +20,23 @@ export async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+/** Не ждать ответ Supabase дольше ms — иначе крутится загрузка до таймаута fetch */
+export async function withTimeout<T>(
+  promise: PromiseLike<T>,
+  ms: number,
+  label = 'timeout',
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label)), ms)
+  })
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    clearTimeout(timer!)
+  }
+}
+
 export function friendlyNetworkError(msg: string): string {
   const m = msg.toLowerCase()
   if (m.includes('your invite link') || m.includes('send it to your partner'))

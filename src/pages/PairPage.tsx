@@ -11,14 +11,14 @@ import { Input } from '../components/ui/Input'
 
 export function PairPage() {
   const { user, loading: authLoading, signOut } = useAuth()
-  const { couple, isComplete, loading, createCouple, setTogetherSince } = useCouple()
+  const { couple, isComplete, loading, resolved, createCouple, setTogetherSince } = useCouple()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [since, setSince] = useState('')
   const [copied, setCopied] = useState(false)
 
   if (!authLoading && !user) return <Navigate to="/login" replace />
-  if (!loading && isComplete) return <Navigate to="/" replace />
+  if (resolved && !loading && isComplete) return <Navigate to="/" replace />
 
   const inviteUrl =
     typeof window !== 'undefined' && couple?.id
@@ -66,8 +66,8 @@ export function PairPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  if (authLoading || loading) {
-    return <LoadingScreen hint="Подключаемся к базе…" />
+  if (authLoading || (user && !resolved) || loading) {
+    return <LoadingScreen hint="Подключаемся…" />
   }
 
   return (

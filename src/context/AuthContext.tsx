@@ -10,7 +10,9 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { friendlyNetworkError, isRetryableError, sleep } from '../lib/network'
+import { friendlyNetworkError, isRetryableError, sleep, withTimeout } from '../lib/network'
+
+const AUTH_BOOT_MS = 5000
 import type { Profile } from '../types/database'
 
 interface AuthState {
@@ -75,8 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    supabase.auth
-      .getSession()
+    withTimeout(supabase.auth.getSession(), AUTH_BOOT_MS, 'auth_boot')
       .then(({ data }) => {
         if (!mounted) return
         setSession(data.session)
@@ -87,7 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch((e) => {
         console.error('auth session:', e)
-        if (mounted) setLoading(false)
+        if (mounted) {
+          setLoading(false)
+          setSession(null)
+        }
       })
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {

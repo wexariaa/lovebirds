@@ -9,16 +9,20 @@ import {
   type ReactNode,
 } from 'react'
 import { supabase } from '../lib/supabase'
-import { friendlyNetworkError, isRetryableError, sleep } from '../lib/network'
+import { friendlyNetworkError, isRetryableError, sleep, withTimeout } from '../lib/network'
 import { useAuth } from './AuthContext'
 import type { Couple, Profile } from '../types/database'
+
+const COUPLE_FETCH_MS = 8000
 
 interface CoupleState {
   couple: Couple | null
   coupleId: string | null
   myRole: 'a' | 'b' | null
   partner: Profile | null
+  memberCount: number
   loading: boolean
+  resolved: boolean
   isComplete: boolean
   refresh: () => Promise<void>
   createCouple: () => Promise<{ coupleId: string | null; error: string | null }>
@@ -34,28 +38,51 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
   const [couple, setCouple] = useState<Couple | null>(null)
   const [myRole, setMyRole] = useState<'a' | 'b' | null>(null)
   const [partner, setPartner] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [memberCount, setMemberCount] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [resolved, setResolved] = useState(false)
   const userId = user?.id
   const refreshGen = useRef(0)
+
+  const loadPartner = useCallback(async (partnerId: string, gen: number) => {
+    try {
+      const { data } = await withTimeout(
+        supabase.from('profiles').select('*').eq('id', partnerId).single(),
+        COUPLE_FETCH_MS,
+        'partner_profile',
+      )
+      if (gen === refreshGen.current) setPartner(data)
+    } catch (e) {
+      console.error('partner profile:', e)
+    }
+  }, [])
 
   const refresh = useCallback(
     async (opts?: { silent?: boolean }) => {
       const gen = ++refreshGen.current
+
+      if (!userId) {
+        setCouple(null)
+        setMyRole(null)
+        setPartner(null)
+        setMemberCount(0)
+        setLoading(false)
+        setResolved(true)
+        return
+      }
+
       if (!opts?.silent) setLoading(true)
 
       try {
-        if (!userId) {
-          setCouple(null)
-          setMyRole(null)
-          setPartner(null)
-          return
-        }
-
-        const { data: membership, error: mErr } = await supabase
-          .from('couple_members')
-          .select('couple_id, role')
-          .eq('user_id', userId)
-          .maybeSingle()
+        const { data: membership, error: mErr } = await withTimeout(
+          supabase
+            .from('couple_members')
+            .select('couple_id, role')
+            .eq('user_id', userId)
+            .maybeSingle(),
+          COUPLE_FETCH_MS,
+          'couple_members',
+        )
 
         if (gen !== refreshGen.current) return
         if (mErr) console.error('couple_members:', mErr.message)
@@ -64,65 +91,81 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
           setCouple(null)
           setMyRole(null)
           setPartner(null)
+          setMemberCount(0)
           return
         }
 
         setMyRole(membership.role)
 
-        const [{ data: coupleData }, { data: members }] = await Promise.all([
-          supabase.from('couples').select('*').eq('id', membership.couple_id).single(),
-          supabase
-            .from('couple_members')
-            .select('user_id')
-            .eq('couple_id', membership.couple_id),
-        ])
+        const [{ data: coupleData }, { data: members }] = await withTimeout(
+          Promise.all([
+            supabase.from('couples').select('*').eq('id', membership.couple_id).single(),
+            supabase
+              .from('couple_members')
+              .select('user_id')
+              .eq('couple_id', membership.couple_id),
+          ]),
+          COUPLE_FETCH_MS,
+          'couple_bundle',
+        )
 
         if (gen !== refreshGen.current) return
+
         setCouple(coupleData)
+        const count = members?.length ?? 0
+        setMemberCount(count)
 
         const partnerId = members?.find((m) => m.user_id !== userId)?.user_id
         if (partnerId) {
-          const { data: partnerProfile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', partnerId)
-            .single()
-          if (gen === refreshGen.current) setPartner(partnerProfile)
+          void loadPartner(partnerId, gen)
         } else {
           setPartner(null)
         }
       } catch (e) {
         console.error('couple refresh:', e)
       } finally {
-        if (gen === refreshGen.current && !opts?.silent) setLoading(false)
+        if (gen === refreshGen.current) {
+          if (!opts?.silent) setLoading(false)
+          setResolved(true)
+        }
       }
     },
-    [userId],
+    [userId, loadPartner],
   )
 
   useEffect(() => {
+    setResolved(false)
     refresh()
   }, [refresh])
 
   useEffect(() => {
     if (!couple?.id) return
 
-    const channel = supabase
-      .channel(`couple-${couple.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'couples', filter: `id=eq.${couple.id}` },
-        () => refresh({ silent: true }),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'couple_members', filter: `couple_id=eq.${couple.id}` },
-        () => refresh({ silent: true }),
-      )
-      .subscribe()
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    const timer = setTimeout(() => {
+      channel = supabase
+        .channel(`couple-${couple.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'couples', filter: `id=eq.${couple.id}` },
+          () => refresh({ silent: true }),
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'couple_members',
+            filter: `couple_id=eq.${couple.id}`,
+          },
+          () => refresh({ silent: true }),
+        )
+        .subscribe()
+    }, 1500)
 
     return () => {
-      supabase.removeChannel(channel)
+      clearTimeout(timer)
+      if (channel) supabase.removeChannel(channel)
     }
   }, [couple?.id, refresh])
 
@@ -201,10 +244,9 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
         }
 
         if (!isRetryableError(msg) || attempt === 2) break
-        await sleep(1500 * (attempt + 1))
+        await sleep(800 * (attempt + 1))
       }
 
-      // Старая join_couple на Supabase: первый запрос мог пройти, второй — «already in couple»
       if (lastError) {
         const { data: membership } = await supabase
           .from('couple_members')
@@ -245,11 +287,14 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
       setCouple(null)
       setPartner(null)
       setMyRole(null)
+      setMemberCount(0)
     }
     return { error: error?.message ?? null }
   }, [])
 
-  const isComplete = Boolean(couple && partner && couple.status === 'active')
+  const isComplete = Boolean(
+    couple?.status === 'active' && couple?.together_since && memberCount >= 2,
+  )
 
   const value = useMemo(
     () => ({
@@ -257,7 +302,9 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
       coupleId: couple?.id ?? null,
       myRole,
       partner,
+      memberCount,
       loading,
+      resolved,
       isComplete,
       refresh: () => refresh(),
       createCouple,
@@ -269,7 +316,9 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
       couple,
       myRole,
       partner,
+      memberCount,
       loading,
+      resolved,
       isComplete,
       refresh,
       createCouple,

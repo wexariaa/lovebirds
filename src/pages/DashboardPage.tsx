@@ -20,13 +20,13 @@ import { TogetherWidget } from '../components/dashboard/TogetherWidget'
 
 export function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
-  const { isComplete, loading, partner } = useCouple()
+  const { isComplete, loading, resolved, partner } = useCouple()
 
   if (!authLoading && !user) return <Navigate to="/login" replace />
-  if (!loading && !isComplete) return <Navigate to="/pair" replace />
+  if (resolved && !loading && !isComplete) return <Navigate to="/pair" replace />
 
-  if (authLoading || loading) {
-    return <LoadingScreen />
+  if (authLoading || (user && !resolved) || loading) {
+    return <LoadingScreen hint="Подключаемся…" />
   }
 
   return (
