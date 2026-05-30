@@ -6,8 +6,6 @@ import { supabase } from '../lib/supabase'
 import { friendlyNetworkError } from '../lib/network'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
-import { LoadingScreen } from '../components/ui/LoadingScreen'
-
 type InviteState =
   | 'loading'
   | 'ok'
@@ -18,7 +16,7 @@ type InviteState =
 
 export function JoinPage() {
   const { id } = useParams<{ id: string }>()
-  const { user, loading: authLoading } = useAuth()
+  const { user } = useAuth()
   const { isComplete, joinCouple } = useCouple()
   const navigate = useNavigate()
   const [since, setSince] = useState('')
@@ -87,7 +85,6 @@ export function JoinPage() {
     }
   }, [id, user, navigate])
 
-  if (authLoading) return <LoadingScreen hint="Входим…" />
   if (!user) return <Navigate to={`/login?redirect=/join/${id}`} replace />
   if (isComplete) return <Navigate to="/" replace />
 

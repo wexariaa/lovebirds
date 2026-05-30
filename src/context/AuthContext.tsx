@@ -10,9 +10,8 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { friendlyNetworkError, isRetryableError, sleep, withTimeout } from '../lib/network'
-
-const AUTH_BOOT_MS = 5000
+import { readCachedSession } from '../lib/auth-cache'
+import { friendlyNetworkError, isRetryableError, sleep } from '../lib/network'
 import type { Profile } from '../types/database'
 
 interface AuthState {
@@ -34,10 +33,11 @@ function defer(fn: () => void) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
+  const [session, setSession] = useState<Session | null>(() => readCachedSession())
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const profileLoadRef = useRef(0)
+  const bootProfileRef = useRef(false)
 
   const loadProfile = useCallback(async (userId: string, userMeta?: User) => {
     const loadId = ++profileLoadRef.current
@@ -77,32 +77,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    withTimeout(supabase.auth.getSession(), AUTH_BOOT_MS, 'auth_boot')
-      .then(({ data }) => {
-        if (!mounted) return
-        setSession(data.session)
-        setLoading(false)
-        if (data.session?.user) {
-          defer(() => loadProfile(data.session!.user.id, data.session!.user))
-        }
-      })
-      .catch((e) => {
-        console.error('auth session:', e)
-        if (mounted) {
-          setLoading(false)
-          setSession(null)
-        }
-      })
+    const cached = readCachedSession()
+    if (cached?.user && !bootProfileRef.current) {
+      bootProfileRef.current = true
+      defer(() => loadProfile(cached.user.id, cached.user))
+    }
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (!mounted) return
       setSession(s)
       setLoading(false)
       if (s?.user) {
         defer(() => loadProfile(s.user.id, s.user))
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         profileLoadRef.current++
         setProfile(null)
+        bootProfileRef.current = false
+      }
+    })
+
+    // Фон: обновить токен / подтвердить сессию — UI уже показан из кэша
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return
+      setSession(data.session)
+      if (data.session?.user) {
+        defer(() => loadProfile(data.session!.user.id, data.session!.user))
       }
     })
 
@@ -125,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const msg = e instanceof Error ? e.message : String(e)
         if (attempt === 2) return { error: friendlyNetworkError(msg) }
       }
-      await sleep(1200 * (attempt + 1))
+      await sleep(800 * (attempt + 1))
     }
     return { error: 'Не удалось войти. Проверьте интернет и попробуйте снова.' }
   }, [])
@@ -153,13 +152,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const msg = e instanceof Error ? e.message : String(e)
         if (attempt === 2) return { error: friendlyNetworkError(msg) }
       }
-      await sleep(1200 * (attempt + 1))
+      await sleep(800 * (attempt + 1))
     }
     return { error: 'Не удалось зарегистрироваться. Проверьте интернет.' }
   }, [])
 
   const signOut = useCallback(async () => {
     profileLoadRef.current++
+    bootProfileRef.current = false
     await supabase.auth.signOut()
     setSession(null)
     setProfile(null)

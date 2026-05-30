@@ -19,14 +19,14 @@ import { TicTacToe } from '../components/dashboard/TicTacToe'
 import { TogetherWidget } from '../components/dashboard/TogetherWidget'
 
 export function DashboardPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user } = useAuth()
   const { isComplete, loading, resolved, partner } = useCouple()
 
-  if (!authLoading && !user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/login" replace />
   if (resolved && !loading && !isComplete) return <Navigate to="/pair" replace />
 
-  if (authLoading || (user && !resolved) || loading) {
-    return <LoadingScreen hint="Подключаемся…" />
+  if ((user && !resolved) || loading) {
+    return <LoadingScreen hint="Загружаем пару…" />
   }
 
   return (
