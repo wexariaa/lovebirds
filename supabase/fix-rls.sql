@@ -29,7 +29,40 @@ $$;
 
 CREATE FUNCTION public.user_has_couple()
 RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
-  SELECT EXISTS (SELECT 1 FROM public.couple_members WHERE user_id = auth.uid());
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.couple_members cm
+    JOIN public.couples c ON c.id = cm.couple_id
+    WHERE cm.user_id = auth.uid()
+      AND NOT (
+        cm.role = 'a'
+        AND c.status = 'pending'
+        AND (SELECT COUNT(*)::int FROM public.couple_members WHERE couple_id = cm.couple_id) = 1
+      )
+  );
+$$;
+
+CREATE FUNCTION public.user_solo_pending_couple_id()
+RETURNS uuid LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT cm.couple_id
+  FROM public.couple_members cm
+  JOIN public.couples c ON c.id = cm.couple_id
+  WHERE cm.user_id = auth.uid()
+    AND cm.role = 'a'
+    AND c.status = 'pending'
+    AND (SELECT COUNT(*)::int FROM public.couple_members WHERE couple_id = cm.couple_id) = 1
+  LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION public.abandon_solo_pending_couple()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_couple_id uuid;
+BEGIN
+  v_couple_id := public.user_solo_pending_couple_id();
+  IF v_couple_id IS NULL THEN RETURN; END IF;
+  DELETE FROM public.couple_members WHERE couple_id = v_couple_id;
+  DELETE FROM public.couples WHERE id = v_couple_id;
+END;
 $$;
 
 CREATE FUNCTION public.partner_user_id()
@@ -55,6 +88,8 @@ GRANT EXECUTE ON FUNCTION public.my_couple_id() TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.is_couple_member(uuid) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.couple_has_slot(uuid) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.user_has_couple() TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.user_solo_pending_couple_id() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.abandon_solo_pending_couple() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.partner_user_id() TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.couple_awaiting_partner(uuid) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.couple_is_empty(uuid) TO authenticated, anon;

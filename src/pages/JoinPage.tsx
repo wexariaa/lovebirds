@@ -151,8 +151,9 @@ export function JoinPage() {
           </p>
         )}
         {inviteState === 'unknown' && (
-          <p className="text-sm text-rose-500 text-center">
-            Не удалось проверить ссылку — можно попробовать связаться.
+          <p className="text-sm text-[var(--lb-muted)] text-center">
+            Не удалось проверить ссылку — можно попробовать связаться. Если вы создавали свою
+            ссылку, она автоматически заменится.
           </p>
         )}
         <Button type="submit" className="w-full" disabled={!canSubmit}>

@@ -1,4 +1,4 @@
--- FIX v3: idempotent join + solo pending abandon
+-- FIX v3: оба создали ссылку — можно войти по ссылке партнёра (своя пустая удалится)
 -- Supabase → SQL Editor → Run
 
 CREATE OR REPLACE FUNCTION public.user_solo_pending_couple_id()
@@ -27,7 +27,9 @@ DECLARE
   v_couple_id uuid;
 BEGIN
   v_couple_id := public.user_solo_pending_couple_id();
-  IF v_couple_id IS NULL THEN RETURN; END IF;
+  IF v_couple_id IS NULL THEN
+    RETURN;
+  END IF;
   DELETE FROM public.couple_members WHERE couple_id = v_couple_id;
   DELETE FROM public.couples WHERE id = v_couple_id;
 END;
@@ -36,6 +38,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.user_solo_pending_couple_id() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.abandon_solo_pending_couple() TO authenticated;
 
+-- «В паре» = активная пара или уже партнёр (b), НЕ пустая ссылка создателя
 CREATE OR REPLACE FUNCTION public.user_has_couple()
 RETURNS boolean
 LANGUAGE sql
@@ -71,7 +74,6 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  -- Уже в ЭТОЙ паре (повторное нажатие / медленный интернет)
   SELECT role INTO v_my_role
   FROM public.couple_members
   WHERE couple_id = p_couple_id AND user_id = v_uid;
@@ -86,6 +88,7 @@ BEGIN
     RETURN;
   END IF;
 
+  -- Своя пустая ссылка не мешает войти к партнёру
   PERFORM public.abandon_solo_pending_couple();
 
   IF public.user_has_couple() THEN
@@ -114,9 +117,6 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.join_couple(uuid, date) TO authenticated;
-
--- Проверка ссылки без RLS (кнопка «Связаться» на join-странице)
 CREATE OR REPLACE FUNCTION public.check_invite_status(p_couple_id uuid)
 RETURNS text
 LANGUAGE plpgsql
@@ -155,4 +155,5 @@ BEGIN
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION public.join_couple(uuid, date) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.check_invite_status(uuid) TO authenticated;

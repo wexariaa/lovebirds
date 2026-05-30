@@ -172,6 +172,8 @@ export function CoupleProvider({ children }: { children: ReactNode }) {
   const createCouple = useCallback(async () => {
     if (!userId) return { coupleId: null, error: 'Не авторизован' }
 
+    await supabase.rpc('abandon_solo_pending_couple')
+
     const { data: existing } = await supabase
       .from('couple_members')
       .select('id')

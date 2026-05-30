@@ -137,6 +137,7 @@ async function main() {
   }
 
   printSummary()
+  await testBothCreated()
 }
 
 function printSummary() {
@@ -155,6 +156,10 @@ function printSummary() {
   const checkFn = results.find((r) => r.step.startsWith('check_invite_status pending'))
   if (checkFn && !checkFn.ok) {
     console.log('⚠ Добавьте check_invite_status — перезапустите supabase/fix-join.sql в SQL Editor')
+  }
+  const bothTest = results.find((r) => r.step === 'B joins A after own link')
+  if (bothTest && !bothTest.ok) {
+    console.log('⚠ Оба создали ссылку — выполните supabase/fix-solo-pending.sql')
   }
   console.log('Тестовые пары остаются в БД (можно удалить в Table Editor)')
 }
